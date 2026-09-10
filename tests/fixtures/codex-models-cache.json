@@ -1,0 +1,8 @@
+{
+  "client_version": "0.fake",
+  "fetched_at": "2026-09-09T03:48:03.790219Z",
+  "models": [
+    {"slug": "gpt-6-astra", "display_name": "GPT-6-Astra"},
+    {"slug": "o3", "display_name": "o3"}
+  ]
+}

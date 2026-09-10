@@ -1,0 +1,77 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+import sys
+import time
+
+
+args = sys.argv[1:]
+
+
+def delay_for(command: str) -> None:
+    delays = json.loads(os.environ.get("MAO_FAKE_ORCA_DELAYS_JSON", "{}"))
+    delay_seconds = float(
+        delays.get(command, os.environ.get("MAO_FAKE_ORCA_DELAY_SECONDS", "0"))
+    )
+    if delay_seconds:
+        time.sleep(delay_seconds)
+
+if "--help" in args:
+    delay_for("preflight")
+    if os.environ.get("MAO_FAKE_ORCA_PROVE_UNATTENDED", "1") == "1":
+        print(
+            "managed codex launch: --dangerously-bypass-approvals-and-sandbox\n"
+            "managed claude launch: --dangerously-skip-permissions"
+        )
+    else:
+        print("worker-start help without unattended launch guarantees")
+    raise SystemExit(0)
+
+
+def command_name(values: list[str]) -> str:
+    if values and values[0] == "status":
+        return "status"
+    if len(values) >= 2 and values[0] in {"orchestration", "terminal"}:
+        return " ".join(values[:2])
+    return "unknown"
+
+
+command = command_name(args)
+log = Path(os.environ["MAO_FAKE_ORCA_LOG"])
+with log.open("a", encoding="utf-8") as stream:
+    stream.write(json.dumps({"command": command, "args": args}) + "\n")
+delay_for(command)
+
+if command == "status":
+    if os.environ.get("MAO_FAKE_ORCA_STATUS_FAILURE") == "1":
+        print(json.dumps({"status": "unavailable"}))
+        raise SystemExit(1)
+    print(json.dumps({"status": "ready"}))
+elif command == "orchestration run-create":
+    print(json.dumps({"run_id": "orca-run-1"}))
+elif command == "orchestration task-create":
+    print(json.dumps({"task_id": "task-1"}))
+elif command == "terminal create":
+    print(json.dumps({"terminal": {"handle": "terminal-1"}}))
+elif command == "orchestration worker-start":
+    print(json.dumps({"dispatch_id": "dispatch-1"}))
+elif command == "orchestration worker-show":
+    state = os.environ.get("MAO_FAKE_ORCA_WORKER_STATE", "succeeded")
+    observation = {"agentWait": None}
+    if os.environ.get("MAO_FAKE_ORCA_AGENT_WAIT") == "1":
+        observation["agentWait"] = {"prompt": "Allow this operation?"}
+    print(json.dumps({"state": state, "observation": observation}))
+elif command == "orchestration worker-read":
+    fixture = Path(os.environ["MAO_FAKE_FIXTURES"]) / "review-valid.json"
+    print(json.dumps({"output": fixture.read_text(encoding="utf-8")}))
+elif command == "orchestration worker-release":
+    if os.environ.get("MAO_FAKE_ORCA_RELEASE_FAILURE") == "1":
+        print(json.dumps({"status": "release_failed"}))
+        raise SystemExit(1)
+    print(json.dumps({"status": "released"}))
+else:
+    print(json.dumps({"error": "unsupported fake command", "args": args}))
+    raise SystemExit(2)

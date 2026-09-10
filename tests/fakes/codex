@@ -1,0 +1,66 @@
+#!/usr/bin/env python3
+import json
+import os
+from pathlib import Path
+import sys
+
+
+args = sys.argv[1:]
+log = Path(os.environ["MAO_FAKE_LOG"])
+with log.open("a", encoding="utf-8") as stream:
+    stream.write(
+        json.dumps(
+            {
+                "executable": Path(sys.argv[0]).name,
+                "args": args,
+                "cwd": str(Path.cwd()),
+            }
+        )
+        + "\n"
+    )
+
+if "--version" in args:
+    print("codex-cli 0.fake")
+elif "unavailable-model" in args:
+    print("model unavailable", file=sys.stderr)
+    raise SystemExit(1)
+elif "Reply with exact text OK." in args:
+    requested = args[args.index("--model") + 1]
+    resolved = "gpt-resolved" if requested == "gpt-alias" else requested
+    print(
+        json.dumps(
+            {
+                "type": "thread.started",
+                "model": requested,
+                "metadata": {"status": "OK", "model": "gpt-unrelated"},
+            }
+        )
+    )
+    print(
+        json.dumps(
+            {
+                "type": "item.completed",
+                "item": {
+                    "type": "agent_message",
+                    "text": "NOT OK" if requested == "metadata-ok-only" else "OK",
+                },
+                "model": resolved,
+            }
+        )
+    )
+    print(json.dumps({"type": "turn.completed", "usage": {"output_tokens": 1}}))
+else:
+    fixture = Path(os.environ["MAO_FAKE_FIXTURES"]) / "review-valid.json"
+    print(json.dumps({"type": "thread.started"}))
+    print(
+        json.dumps(
+            {
+                "type": "item.completed",
+                "item": {
+                    "type": "agent_message",
+                    "text": fixture.read_text(encoding="utf-8"),
+                },
+            }
+        )
+    )
+    print(json.dumps({"type": "turn.completed", "usage": {}}))

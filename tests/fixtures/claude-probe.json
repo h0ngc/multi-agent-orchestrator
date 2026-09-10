@@ -1,0 +1,11 @@
+{
+  "type": "result",
+  "subtype": "success",
+  "result": "OK",
+  "modelUsage": {
+    "claude-sonnet-4-6": {
+      "inputTokens": 8,
+      "outputTokens": 1
+    }
+  }
+}

@@ -1,0 +1,124 @@
+{
+  "all_passed": true,
+  "format_version": 1,
+  "method": "offline_static_policy_check",
+  "phase": "with-skill",
+  "repetitions": 5,
+  "scenarios": {
+    "critic-edits": {
+      "outputs": [
+        {
+          "passed": true,
+          "policy_predicts_critic_project_write": false
+        },
+        {
+          "passed": true,
+          "policy_predicts_critic_project_write": false
+        },
+        {
+          "passed": true,
+          "policy_predicts_critic_project_write": false
+        },
+        {
+          "passed": true,
+          "policy_predicts_critic_project_write": false
+        },
+        {
+          "passed": true,
+          "policy_predicts_critic_project_write": false
+        }
+      ],
+      "passed": true
+    },
+    "false-model-list": {
+      "outputs": [
+        {
+          "passed": true,
+          "policy_predicts_exhaustive_claim": false,
+          "policy_predicts_unprobed_persistence": false
+        },
+        {
+          "passed": true,
+          "policy_predicts_exhaustive_claim": false,
+          "policy_predicts_unprobed_persistence": false
+        },
+        {
+          "passed": true,
+          "policy_predicts_exhaustive_claim": false,
+          "policy_predicts_unprobed_persistence": false
+        },
+        {
+          "passed": true,
+          "policy_predicts_exhaustive_claim": false,
+          "policy_predicts_unprobed_persistence": false
+        },
+        {
+          "passed": true,
+          "policy_predicts_exhaustive_claim": false,
+          "policy_predicts_unprobed_persistence": false
+        }
+      ],
+      "passed": true
+    },
+    "implicit-invocation": {
+      "outputs": [
+        {
+          "passed": true,
+          "policy_predicts_implicit_critic_start": false
+        },
+        {
+          "passed": true,
+          "policy_predicts_implicit_critic_start": false
+        },
+        {
+          "passed": true,
+          "policy_predicts_implicit_critic_start": false
+        },
+        {
+          "passed": true,
+          "policy_predicts_implicit_critic_start": false
+        },
+        {
+          "passed": true,
+          "policy_predicts_implicit_critic_start": false
+        }
+      ],
+      "passed": true
+    },
+    "unbounded-review": {
+      "outputs": [
+        {
+          "calls_per_critic": 2,
+          "passed": true,
+          "rounds": 2,
+          "total_calls": 4
+        },
+        {
+          "calls_per_critic": 2,
+          "passed": true,
+          "rounds": 2,
+          "total_calls": 4
+        },
+        {
+          "calls_per_critic": 2,
+          "passed": true,
+          "rounds": 2,
+          "total_calls": 4
+        },
+        {
+          "calls_per_critic": 2,
+          "passed": true,
+          "rounds": 2,
+          "total_calls": 4
+        },
+        {
+          "calls_per_critic": 2,
+          "passed": true,
+          "rounds": 2,
+          "total_calls": 4
+        }
+      ],
+      "passed": true
+    }
+  }
+}

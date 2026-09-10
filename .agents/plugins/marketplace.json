@@ -1,0 +1,20 @@
+{
+  "name": "multi-agent-orchestrator",
+  "interface": {
+    "displayName": "Multi-Agent Orchestrator"
+  },
+  "plugins": [
+    {
+      "name": "multi-agent-orchestrator",
+      "source": {
+        "source": "local",
+        "path": "./plugins/multi-agent-orchestrator"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Coding"
+    }
+  ]
+}

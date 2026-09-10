@@ -1,0 +1,6 @@
+interface:
+  display_name: "Multi-Agent Orchestrator"
+  short_description: "Cross-vendor implementation and bounded review"
+  default_prompt: "Use $multi-agent-orchestrator to implement this request and run bounded cross-vendor review."
+policy:
+  allow_implicit_invocation: false

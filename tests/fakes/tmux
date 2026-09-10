@@ -1,0 +1,59 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import time
+
+
+args = sys.argv[1:]
+log = Path(os.environ["MAO_FAKE_TMUX_LOG"])
+with log.open("a", encoding="utf-8") as stream:
+    stream.write(json.dumps({"args": args}) + "\n")
+
+
+def delay_for(command: str) -> None:
+    delays = json.loads(os.environ.get("MAO_FAKE_TMUX_DELAYS_JSON", "{}"))
+    delay_seconds = float(delays.get(command, 0))
+    if delay_seconds:
+        time.sleep(delay_seconds)
+
+
+delay_for(args[0] if args else "unknown")
+
+
+def target_after(flag: str) -> str:
+    return args[args.index(flag) + 1]
+
+
+if args and args[0] == "has-session":
+    target = target_after("-t")
+    preexisting = os.environ.get("MAO_FAKE_TMUX_PREEXISTING")
+    state = Path(os.environ["MAO_FAKE_TMUX_STATE"]) / target
+    raise SystemExit(0 if target == preexisting or state.exists() else 1)
+
+if args and args[0] == "new-session":
+    target = target_after("-s")
+    if os.environ.get("MAO_FAKE_TMUX_STICKY") == "1":
+        state = Path(os.environ["MAO_FAKE_TMUX_STATE"]) / target
+        state.touch()
+    else:
+        subprocess.run(
+            args[-1],
+            cwd=Path.cwd(),
+            shell=True,
+            executable="/bin/sh",
+            check=False,
+        )
+    raise SystemExit(0)
+
+if args and args[0] == "kill-session":
+    target = target_after("-t")
+    state = Path(os.environ["MAO_FAKE_TMUX_STATE"]) / target
+    state.unlink(missing_ok=True)
+    raise SystemExit(0)
+
+raise SystemExit(2)

@@ -1,0 +1,17 @@
+{
+  "name": "multi-agent-orchestrator",
+  "owner": {
+    "name": "chanhong"
+  },
+  "plugins": [
+    {
+      "name": "multi-agent-orchestrator",
+      "source": "./plugins/multi-agent-orchestrator",
+      "description": "Cross-vendor implementation and bounded review",
+      "version": "0.1.0",
+      "author": {
+        "name": "chanhong"
+      }
+    }
+  ]
+}

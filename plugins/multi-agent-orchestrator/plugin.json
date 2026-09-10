@@ -1,0 +1,6 @@
+{
+  "name": "multi-agent-orchestrator",
+  "version": "0.1.0",
+  "description": "Cross-vendor implementation and bounded review",
+  "skills": "./skills/"
+}

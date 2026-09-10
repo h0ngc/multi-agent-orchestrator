@@ -1,0 +1,38 @@
+#!/usr/bin/env python3
+import json
+import os
+from pathlib import Path
+import sys
+
+
+args = sys.argv[1:]
+log = Path(os.environ["MAO_FAKE_LOG"])
+with log.open("a", encoding="utf-8") as stream:
+    stream.write(
+        json.dumps(
+            {
+                "executable": Path(sys.argv[0]).name,
+                "args": args,
+                "cwd": str(Path.cwd()),
+            }
+        )
+        + "\n"
+    )
+
+if "--version" in args:
+    print("2.1.fake (Claude Code)")
+elif "--help" in args:
+    print("--model <model> aliases: 'fable', 'opus', or 'sonnet'")
+elif "unavailable-model" in args:
+    print("model unavailable", file=sys.stderr)
+    raise SystemExit(1)
+elif "Reply with exact text OK." in args:
+    fixture = Path(os.environ["MAO_FAKE_FIXTURES"]) / "claude-probe.json"
+    print(fixture.read_text(encoding="utf-8"))
+else:
+    fixture = Path(os.environ["MAO_FAKE_FIXTURES"]) / "review-valid.json"
+    print(
+        json.dumps(
+            {"type": "result", "result": fixture.read_text(encoding="utf-8")}
+        )
+    )

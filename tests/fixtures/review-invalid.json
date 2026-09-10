@@ -1,0 +1,17 @@
+{
+  "summary": "Missing evidence",
+  "findings": [
+    {
+      "severity": "major",
+      "category": "correctness",
+      "file": "src/app.py",
+      "line": 2,
+      "reason": "Wrong result",
+      "suggested_fix": "Fix result",
+      "confidence": 0.9,
+      "needs_context": []
+    }
+  ],
+  "usage": {},
+  "review_complete": true
+}

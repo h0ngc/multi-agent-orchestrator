@@ -1,0 +1,30 @@
+{
+  "name": "multi-agent-orchestrator",
+  "version": "0.1.0",
+  "description": "Cross-vendor implementation and bounded review",
+  "author": {
+    "name": "chanhong",
+    "url": "https://github.com/h0ngc"
+  },
+  "homepage": "https://github.com/h0ngc/multi-agent-orchestrator#readme",
+  "repository": "https://github.com/h0ngc/multi-agent-orchestrator",
+  "license": "MIT",
+  "keywords": [
+    "multi-agent",
+    "orchestration",
+    "code-review"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Multi-Agent Orchestrator",
+    "shortDescription": "Cross-vendor implementation and bounded review",
+    "longDescription": "Coordinate implementation and bounded independent review across multiple AI vendors.",
+    "developerName": "chanhong",
+    "category": "Coding",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "defaultPrompt": "Use $multi-agent-orchestrator to implement this request and run bounded cross-vendor review."
+  }
+}
