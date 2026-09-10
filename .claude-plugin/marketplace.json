@@ -8,7 +8,7 @@
       "name": "multi-agent-orchestrator",
       "source": "./plugins/multi-agent-orchestrator",
       "description": "Cross-vendor implementation and bounded review",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "author": {
         "name": "chanhong"
       }

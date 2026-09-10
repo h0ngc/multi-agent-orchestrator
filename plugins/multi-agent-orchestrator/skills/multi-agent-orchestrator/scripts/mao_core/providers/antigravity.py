@@ -69,7 +69,8 @@ class AntigravityAdapter:
                 Path(directory),
                 min(self.timeout_seconds, 10),
             )
-        values = _efforts_from_help(result.stdout) if result.exit_code == 0 else []
+        help_text = "\n".join(value for value in (result.stdout, result.stderr) if value)
+        values = _efforts_from_help(help_text) if result.exit_code == 0 else []
         return {
             "values": values,
             "default": None,
