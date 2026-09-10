@@ -15,6 +15,7 @@ IGNORE_RULE = "/.multi-agent-orchestrator/"
 
 DEFAULT_VALUES = {
     "MAO_PRIMARY_PROVIDER": "codex",
+    "MAO_ENABLED_PROVIDERS": "codex,claude,antigravity",
     "MAO_CODEX_MODEL": "gpt-6-astra",
     "MAO_CLAUDE_MODEL": "claude-opus-4-6",
     "MAO_ANTIGRAVITY_MODEL": "gemini-3.1-pro-high",
@@ -52,6 +53,7 @@ class Config:
     max_total_critic_calls: int = 4
     max_transport_attempts: int = 2
     timeout_seconds: int = 300
+    enabled_providers: tuple[str, ...] = ("codex", "claude", "antigravity")
 
 
 def _config_error(message: str, **details: object) -> MaoError:
@@ -128,6 +130,13 @@ def initialize_project(root: Path) -> tuple[Path, Path]:
     (runtime_path / "runs").mkdir(exist_ok=True)
     _append_ignore_rule(root)
     return env_path, state_path
+
+
+def initialize_installation(root: Path) -> Path:
+    """Add project ignore rule without creating runtime configuration."""
+    root = Path(root).expanduser().resolve()
+    _append_ignore_rule(root)
+    return root / ".gitignore"
 
 
 def _parse_value(raw_value: str, key: str, line_number: int | None) -> str:
@@ -235,6 +244,24 @@ def _build_config(values: Mapping[str, str]) -> Config:
     if provider not in {"codex", "claude", "antigravity"}:
         raise _config_error("Unsupported primary provider", key="MAO_PRIMARY_PROVIDER")
 
+    raw_enabled = values["MAO_ENABLED_PROVIDERS"]
+    enabled = tuple(item.strip() for item in raw_enabled.split(","))
+    supported_providers = {"codex", "claude", "antigravity"}
+    if (
+        not enabled
+        or any(not item or item not in supported_providers for item in enabled)
+        or len(set(enabled)) != len(enabled)
+    ):
+        raise _config_error(
+            "Enabled providers must be a unique comma-separated supported list",
+            key="MAO_ENABLED_PROVIDERS",
+        )
+    if provider not in enabled:
+        raise _config_error(
+            "Primary provider must be enabled",
+            key="MAO_ENABLED_PROVIDERS",
+        )
+
     transport = values["MAO_TRANSPORT"]
     transports = {"direct", "orca", "tmux"}
     if transport not in transports:
@@ -271,6 +298,7 @@ def _build_config(values: Mapping[str, str]) -> Config:
             values, "MAO_MAX_TRANSPORT_ATTEMPTS", 2
         ),
         timeout_seconds=_positive_int(values, "MAO_TIMEOUT_SECONDS"),
+        enabled_providers=enabled,
     )
 
 

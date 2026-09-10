@@ -8,7 +8,7 @@ python3 plugins/multi-agent-orchestrator/skills/multi-agent-orchestrator/scripts
 
 Codex target: `.agents/skills/multi-agent-orchestrator/`.
 Claude target: `.claude/skills/multi-agent-orchestrator/`.
-Runtime configuration: `.multi-agent-orchestrator/.env`, ignored by project `.gitignore`.
+Installer adds `/.multi-agent-orchestrator/` to project `.gitignore` but creates no runtime directory, `.env`, state, or run records. Successful interactive configuration later creates project-local `.multi-agent-orchestrator/.env` and verified state.
 
 Antigravity selection reports `agy plugin install <absolute-local-plugin-path>` but does not mutate user registry. Execute registration only with explicit request:
 

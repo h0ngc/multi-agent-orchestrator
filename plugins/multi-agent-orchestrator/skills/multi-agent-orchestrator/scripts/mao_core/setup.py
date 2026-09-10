@@ -168,7 +168,7 @@ def _transport_reports(
             }
         elif callable(validator):
             try:
-                for provider in ("codex", "claude", "antigravity"):
+                for provider in config.enabled_providers:
                     if provider != config.primary_provider:
                         validator(provider, project, min(config.timeout_seconds, 30))
                 selected["status"] = "available"
@@ -200,13 +200,23 @@ def setup_payload(
     transports: Mapping[str, TransportAdapter] | None = None,
 ) -> dict:
     root = Path(project).resolve()
+    enabled = set(config.enabled_providers)
     provider_reports = [
-        _provider_report(root, config, name, providers.get(name), probe)
+        _provider_report(
+            root,
+            config,
+            name,
+            providers.get(name),
+            probe and name in enabled,
+        )
         for name in ("codex", "claude", "antigravity")
     ]
+    for report in provider_reports:
+        report["enabled"] = report["provider"] in enabled
     models_by_provider = {
         item["provider"]: [model["requested"] for model in item.get("models", [])]
         for item in provider_reports
+        if item["enabled"]
     }
     selected_primary_model = _selected_model(config, config.primary_provider)
     relaunch = current_provider is not None and (
@@ -218,9 +228,22 @@ def setup_payload(
         "transports": _transport_reports(config, root, transports),
         "questions": [
             {
+                "id": "enabled_providers",
+                "prompt": "Select installed and authenticated providers to use",
+                "options": [
+                    item["provider"]
+                    for item in provider_reports
+                    if item["status"] == "available"
+                ],
+            },
+            {
                 "id": "primary_provider",
                 "prompt": "Select primary provider",
-                "options": [item["provider"] for item in provider_reports if item["status"] == "available"],
+                "options": [
+                    item["provider"]
+                    for item in provider_reports
+                    if item["status"] == "available" and item["enabled"]
+                ],
             },
             {
                 "id": "models",

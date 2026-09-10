@@ -10,7 +10,15 @@ import sys
 from typing import Mapping, Sequence, TextIO
 
 from mao_core.budget import BudgetGuard
-from mao_core.config import initialize_project, load_config, preview_config, write_config
+from mao_core.config import (
+    Config,
+    RUNTIME_DIRECTORY,
+    initialize_installation,
+    initialize_project,
+    load_config,
+    preview_config,
+    write_config,
+)
 from mao_core.errors import MaoError
 from mao_core.packet import PacketRequest, build_packet
 from mao_core.providers.antigravity import AntigravityAdapter
@@ -156,10 +164,13 @@ def _load_packet_input(path: Path) -> dict:
 
 def _eligible_reviewers(project: Path, config: Config) -> tuple[list[str], bool]:
     identities = load_setup_identities(project)
-    expected_models = {
+    all_models = {
         "codex": config.codex_model,
         "claude": config.claude_model,
         "antigravity": config.antigravity_model,
+    }
+    expected_models = {
+        provider: all_models[provider] for provider in config.enabled_providers
     }
     if any(
         item.provider not in expected_models
@@ -192,8 +203,21 @@ def _execute(
     environ: Mapping[str, str],
 ) -> dict:
     project = args.project.expanduser().resolve()
-    initialize_project(project)
     updates = _settings(args.settings) if args.command == "configure" else {}
+    runtime = project / RUNTIME_DIRECTORY
+    configured_before = (runtime / ".env").exists() and (
+        runtime / "state.json"
+    ).exists()
+    if args.command == "configure":
+        initialize_installation(project)
+        if updates and not args.probe:
+            raise MaoError(
+                "CONFIG_INVALID",
+                "Configuration changes require --probe before persistence",
+                {},
+            )
+    else:
+        initialize_project(project)
     config = (
         preview_config(project, updates, environ)
         if args.command == "configure"
@@ -203,45 +227,54 @@ def _execute(
     transports = dict(transport_values or _default_transports())
 
     if args.command == "configure":
+        initial_required_keys = [
+            "MAO_PRIMARY_PROVIDER",
+            "MAO_ENABLED_PROVIDERS",
+            *[
+                {
+                    "codex": "MAO_CODEX_MODEL",
+                    "claude": "MAO_CLAUDE_MODEL",
+                    "antigravity": "MAO_ANTIGRAVITY_MODEL",
+                }[provider]
+                for provider in config.enabled_providers
+            ],
+            "MAO_TRANSPORT",
+        ]
+        missing_selections = (
+            [key for key in initial_required_keys if key not in updates]
+            if not configured_before
+            else []
+        )
+        should_probe = args.probe and not missing_selections
         setup = setup_payload(
             project,
             config,
             providers,
             current_provider=args.current_provider,
             current_model=args.current_model,
-            probe=args.probe,
+            probe=should_probe,
             transports=transports,
         )
-        model_keys = {
-            "MAO_CODEX_MODEL": "codex",
-            "MAO_CLAUDE_MODEL": "claude",
-            "MAO_ANTIGRAVITY_MODEL": "antigravity",
-        }
         reports = {item["provider"]: item for item in setup["providers"]}
-        required_probe_providers = {
-            provider for key, provider in model_keys.items() if key in updates
-        }
-        if "MAO_PRIMARY_PROVIDER" in updates:
-            required_probe_providers.add(config.primary_provider)
-        model_updates_valid = all(
-            args.probe
-            and reports[provider].get("probe", {}).get("verified") is True
-            for provider in required_probe_providers
+        model_updates_valid = bool(should_probe) and all(
+            reports[provider].get("probe", {}).get("verified") is True
+            for provider in config.enabled_providers
         )
         selected_transport = next(
             item for item in setup["transports"] if item.get("selected")
         )
         transport_valid = selected_transport["status"] == "available"
-        applied = model_updates_valid and transport_valid
+        applied = bool(should_probe) and model_updates_valid and transport_valid
         if applied:
             if updates:
                 write_config(project, updates)
-            if args.probe:
-                write_setup_state(project, setup)
+            write_setup_state(project, setup)
         return {
             "command": "configure",
             "project": str(project),
             "applied": applied,
+            "configured": configured_before or applied,
+            "missing_selections": missing_selections,
             "setup": setup,
         }
 

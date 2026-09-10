@@ -24,6 +24,7 @@ class FakeProvider:
         self.model = model
         self.vendor = vendor
         self.available = available
+        self.probe_calls = 0
 
     def detect(self):
         if not self.available:
@@ -37,6 +38,7 @@ class FakeProvider:
         return [ModelCandidate(self.model, self.vendor, f"{self.name} fake", self.name == "antigravity")]
 
     def validate_model(self, model, _cwd):
+        self.probe_calls += 1
         if model != self.model:
             raise MaoError("MODEL_UNAVAILABLE", "bad model", {"provider": self.name})
         return ModelIdentity(self.name, model, model, self.vendor, True)
@@ -99,7 +101,8 @@ def test_setup_payload_is_truthful_machine_readable_and_probes_exact_models(tmp_
     assert payload["permission_mode_detected"] is False
     assert payload["relaunch_required"] is True
     assert payload["relaunch_command"][-1] == "--dangerously-bypass-approvals-and-sandbox"
-    assert payload["questions"][0]["id"] == "primary_provider"
+    assert payload["questions"][0]["id"] == "enabled_providers"
+    assert payload["questions"][1]["id"] == "primary_provider"
 
 
 def test_setup_relaunches_when_provider_matches_but_model_differs(tmp_path):
@@ -126,11 +129,12 @@ def test_setup_conservatively_relaunches_when_current_model_is_unknown(tmp_path)
 
 
 def test_cli_passes_current_model_and_discloses_probe_quota_risk(tmp_path):
+    arguments = initial_configure_args()
+    arguments[-1:-1] = [
+        "--current-provider", "codex", "--current-model", "gpt-old"
+    ]
     code, stdout, stderr = run_cli(
-        [
-            "configure", "--current-provider", "codex",
-            "--current-model", "gpt-old", "--probe",
-        ],
+        arguments,
         tmp_path,
     )
     payload = json.loads(stdout)["setup"]
@@ -188,17 +192,98 @@ def run_cli(arguments, tmp_path, provider_values=None, transport_values=None):
     return exit_code, stdout.getvalue(), stderr.getvalue()
 
 
-def test_cli_exposes_all_required_commands_and_json_stdout(tmp_path):
-    exit_code, stdout, stderr = run_cli(
-        ["configure", "--set", "MAO_TRANSPORT=direct"], tmp_path
-    )
+def initial_configure_args(**overrides):
+    settings = {
+        "MAO_PRIMARY_PROVIDER": "codex",
+        "MAO_ENABLED_PROVIDERS": "codex,claude,antigravity",
+        "MAO_CODEX_MODEL": "gpt-main",
+        "MAO_CLAUDE_MODEL": "claude-critic",
+        "MAO_ANTIGRAVITY_MODEL": "gemini-critic",
+        "MAO_TRANSPORT": "direct",
+    }
+    settings.update(overrides)
+    arguments = ["configure"]
+    for key, value in settings.items():
+        arguments.extend(("--set", f"{key}={value}"))
+    arguments.append("--probe")
+    return arguments
+
+
+def test_initial_configure_discovery_does_not_create_runtime_configuration(tmp_path):
+    exit_code, stdout, stderr = run_cli(["configure"], tmp_path)
     payload = json.loads(stdout)
     assert exit_code == 0
     assert stderr == ""
     assert payload["command"] == "configure"
-    assert payload["applied"] is True
-    assert (tmp_path / ".multi-agent-orchestrator/.env").exists()
+    assert payload["applied"] is False
+    assert payload["configured"] is False
+    assert not (tmp_path / ".multi-agent-orchestrator").exists()
     assert "/.multi-agent-orchestrator/" in (tmp_path / ".gitignore").read_text()
+
+
+def test_initial_configure_requires_explicit_agent_model_and_transport_selections(
+    tmp_path,
+):
+    values = providers()
+    code, stdout, stderr = run_cli(
+        ["configure", "--set", "MAO_TRANSPORT=direct", "--probe"],
+        tmp_path,
+        provider_values=values,
+    )
+
+    payload = json.loads(stdout)
+    assert code == 0
+    assert stderr == ""
+    assert payload["applied"] is False
+    assert payload["missing_selections"] == [
+        "MAO_PRIMARY_PROVIDER",
+        "MAO_ENABLED_PROVIDERS",
+        "MAO_CODEX_MODEL",
+        "MAO_CLAUDE_MODEL",
+        "MAO_ANTIGRAVITY_MODEL",
+    ]
+    assert all(provider.probe_calls == 0 for provider in values.values())
+    assert not (tmp_path / ".multi-agent-orchestrator").exists()
+
+
+def test_configure_rejects_settings_without_probe_and_creates_no_runtime(tmp_path):
+    code, stdout, stderr = run_cli(
+        ["configure", "--set", "MAO_TRANSPORT=direct"], tmp_path
+    )
+
+    assert code != 0
+    assert stdout == ""
+    assert json.loads(stderr)["error"]["code"] == "CONFIG_INVALID"
+    assert not (tmp_path / ".multi-agent-orchestrator").exists()
+
+
+def test_initial_configure_probes_only_explicitly_enabled_providers(tmp_path):
+    values = providers()
+    values["antigravity"] = FakeProvider(
+        "antigravity", "gemini-critic", "google", available=False
+    )
+    code, stdout, stderr = run_cli(
+        initial_configure_args(
+            MAO_ENABLED_PROVIDERS="codex,claude",
+        ),
+        tmp_path,
+        provider_values=values,
+    )
+
+    payload = json.loads(stdout)
+    assert code == 0
+    assert stderr == ""
+    assert payload["applied"] is True
+    assert payload["configured"] is True
+    reports = {item["provider"]: item for item in payload["setup"]["providers"]}
+    assert reports["codex"]["enabled"] is True
+    assert reports["claude"]["enabled"] is True
+    assert reports["antigravity"]["enabled"] is False
+    assert "probe" not in reports["antigravity"]
+    model_question = next(
+        item for item in payload["setup"]["questions"] if item["id"] == "models"
+    )
+    assert set(model_question["options"]) == {"codex", "claude"}
 
 
 def test_prepare_records_request_but_does_not_claim_primary_implementation(tmp_path):
@@ -214,16 +299,7 @@ def test_prepare_records_request_but_does_not_claim_primary_implementation(tmp_p
 
 
 def test_packet_command_builds_managed_critic_packet_from_strict_input(tmp_path):
-    code, _stdout, _stderr = run_cli(
-        [
-            "configure",
-            "--set", "MAO_CODEX_MODEL=gpt-main",
-            "--set", "MAO_CLAUDE_MODEL=claude-critic",
-            "--set", "MAO_ANTIGRAVITY_MODEL=gemini-critic",
-            "--probe",
-        ],
-        tmp_path,
-    )
+    code, _stdout, _stderr = run_cli(initial_configure_args(), tmp_path)
     assert code == 0
     run_cli(["prepare", "--run-id", "run-1", "--request", "review work"], tmp_path)
     source = tmp_path / "src.py"
@@ -264,16 +340,7 @@ def test_packet_command_builds_managed_critic_packet_from_strict_input(tmp_path)
 def test_failed_second_critic_packet_build_preserves_active_revision(
     tmp_path, monkeypatch
 ):
-    run_cli(
-        [
-            "configure",
-            "--set", "MAO_CODEX_MODEL=gpt-main",
-            "--set", "MAO_CLAUDE_MODEL=claude-critic",
-            "--set", "MAO_ANTIGRAVITY_MODEL=gemini-critic",
-            "--probe",
-        ],
-        tmp_path,
-    )
+    run_cli(initial_configure_args(), tmp_path)
     run_cli(["prepare", "--run-id", "run-1", "--request", "work"], tmp_path)
     (tmp_path / "src.py").write_text("VALUE = 1\n", encoding="utf-8")
     packet_input = tmp_path / "packet-input.json"
@@ -379,14 +446,12 @@ def test_cli_argument_errors_are_typed_json(tmp_path):
 
 def test_failed_exact_model_probe_does_not_persist_update(tmp_path):
     code, stdout, _stderr = run_cli(
-        ["configure", "--set", "MAO_CODEX_MODEL=not-available", "--probe"],
+        initial_configure_args(MAO_CODEX_MODEL="not-available"),
         tmp_path,
     )
     assert code == 0
     assert json.loads(stdout)["applied"] is False
-    env_text = (tmp_path / ".multi-agent-orchestrator/.env").read_text()
-    assert "MAO_CODEX_MODEL=gpt-6-astra" in env_text
-    assert "not-available" not in env_text
+    assert not (tmp_path / ".multi-agent-orchestrator").exists()
 
 
 def test_invalid_orca_preflight_does_not_persist_transport(tmp_path):
@@ -395,7 +460,7 @@ def test_invalid_orca_preflight_does_not_persist_transport(tmp_path):
     code = main(
         [
             "--project", str(tmp_path), "configure",
-            "--set", "MAO_TRANSPORT=orca",
+            *initial_configure_args(MAO_TRANSPORT="orca")[1:],
         ],
         providers=providers(),
         transports={"direct": FakeTransport(), "orca": InvalidOrcaTransport()},
@@ -409,14 +474,13 @@ def test_invalid_orca_preflight_does_not_persist_transport(tmp_path):
     assert payload["applied"] is False
     selected = next(item for item in payload["setup"]["transports"] if item["selected"])
     assert selected["status"] == "invalid"
-    env_text = (tmp_path / ".multi-agent-orchestrator/.env").read_text()
-    assert "MAO_TRANSPORT=direct" in env_text
+    assert not (tmp_path / ".multi-agent-orchestrator").exists()
 
 
 def test_orca_without_bypass_validator_does_not_persist_transport(tmp_path):
     stdout = io.StringIO()
     code = main(
-        ["--project", str(tmp_path), "configure", "--set", "MAO_TRANSPORT=orca"],
+        ["--project", str(tmp_path), *initial_configure_args(MAO_TRANSPORT="orca")],
         providers=providers(),
         transports={"direct": FakeTransport(), "orca": MissingValidatorOrcaTransport()},
         stdout=stdout,
@@ -428,19 +492,11 @@ def test_orca_without_bypass_validator_does_not_persist_transport(tmp_path):
     assert payload["applied"] is False
     selected = next(item for item in payload["setup"]["transports"] if item["selected"])
     assert selected["status"] == "invalid"
-    assert "MAO_TRANSPORT=direct" in (
-        tmp_path / ".multi-agent-orchestrator/.env"
-    ).read_text()
+    assert not (tmp_path / ".multi-agent-orchestrator").exists()
 
 
 def test_failed_combined_config_keeps_prior_env_and_verified_identities(tmp_path):
-    initial = [
-        "configure",
-        "--set", "MAO_CODEX_MODEL=gpt-main",
-        "--set", "MAO_CLAUDE_MODEL=claude-critic",
-        "--set", "MAO_ANTIGRAVITY_MODEL=gemini-critic",
-        "--probe",
-    ]
+    initial = initial_configure_args()
     assert run_cli(initial, tmp_path)[0] == 0
     env_path = tmp_path / ".multi-agent-orchestrator/.env"
     state_path = tmp_path / ".multi-agent-orchestrator/state.json"
@@ -469,16 +525,7 @@ def test_failed_combined_config_keeps_prior_env_and_verified_identities(tmp_path
 
 
 def test_primary_provider_change_requires_successful_target_primary_probe(tmp_path):
-    run_cli(
-        [
-            "configure",
-            "--set", "MAO_CODEX_MODEL=gpt-main",
-            "--set", "MAO_CLAUDE_MODEL=claude-critic",
-            "--set", "MAO_ANTIGRAVITY_MODEL=gemini-critic",
-            "--probe",
-        ],
-        tmp_path,
-    )
+    run_cli(initial_configure_args(), tmp_path)
     env_path = tmp_path / ".multi-agent-orchestrator/.env"
     before = env_path.read_bytes()
     values = providers()
@@ -499,16 +546,7 @@ def test_primary_provider_change_requires_successful_target_primary_probe(tmp_pa
 
 
 def test_cli_successful_review_does_not_report_primary_as_review_gap(tmp_path):
-    code, _stdout, _stderr = run_cli(
-        [
-            "configure",
-            "--set", "MAO_CODEX_MODEL=gpt-main",
-            "--set", "MAO_CLAUDE_MODEL=claude-critic",
-            "--set", "MAO_ANTIGRAVITY_MODEL=gemini-critic",
-            "--probe",
-        ],
-        tmp_path,
-    )
+    code, _stdout, _stderr = run_cli(initial_configure_args(), tmp_path)
     assert code == 0
     run_cli(["prepare", "--run-id", "run-1", "--request", "work"], tmp_path)
     (tmp_path / "src.py").write_text("VALUE = 1\n", encoding="utf-8")
@@ -579,16 +617,7 @@ def test_cli_successful_review_does_not_report_primary_as_review_gap(tmp_path):
 
 
 def test_cli_requires_managed_packet_before_review(tmp_path):
-    run_cli(
-        [
-            "configure",
-            "--set", "MAO_CODEX_MODEL=gpt-main",
-            "--set", "MAO_CLAUDE_MODEL=claude-critic",
-            "--set", "MAO_ANTIGRAVITY_MODEL=gemini-critic",
-            "--probe",
-        ],
-        tmp_path,
-    )
+    run_cli(initial_configure_args(), tmp_path)
     run_cli(["prepare", "--run-id", "run-1", "--request", "work"], tmp_path)
     code, stdout, stderr = run_cli(
         [
@@ -604,16 +633,7 @@ def test_cli_requires_managed_packet_before_review(tmp_path):
 
 
 def test_cli_rejects_tampered_managed_packet_before_review_dispatch(tmp_path):
-    run_cli(
-        [
-            "configure",
-            "--set", "MAO_CODEX_MODEL=gpt-main",
-            "--set", "MAO_CLAUDE_MODEL=claude-critic",
-            "--set", "MAO_ANTIGRAVITY_MODEL=gemini-critic",
-            "--probe",
-        ],
-        tmp_path,
-    )
+    run_cli(initial_configure_args(), tmp_path)
     run_cli(["prepare", "--run-id", "run-1", "--request", "work"], tmp_path)
     (tmp_path / "src.py").write_text("VALUE = 2\n", encoding="utf-8")
     packet_input = tmp_path / "packet-input.json"

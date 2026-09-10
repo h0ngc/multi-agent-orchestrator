@@ -1,6 +1,6 @@
 {
   "name": "multi-agent-orchestrator",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Cross-vendor implementation and bounded review",
   "author": {
     "name": "chanhong",

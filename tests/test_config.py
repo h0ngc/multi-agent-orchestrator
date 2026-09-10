@@ -6,6 +6,7 @@ import pytest
 from mao_core.config import (
     Config,
     find_project_root,
+    initialize_installation,
     initialize_project,
     load_config,
     write_config,
@@ -14,6 +15,7 @@ from mao_core.errors import MaoError
 
 
 DEFAULT_ENV = """MAO_PRIMARY_PROVIDER=codex
+MAO_ENABLED_PROVIDERS=codex,claude,antigravity
 MAO_CODEX_MODEL=gpt-6-astra
 MAO_CLAUDE_MODEL=claude-opus-4-6
 MAO_ANTIGRAVITY_MODEL=gemini-3.1-pro-high
@@ -26,6 +28,15 @@ MAO_MAX_TOTAL_CRITIC_CALLS=4
 MAO_MAX_TRANSPORT_ATTEMPTS=2
 MAO_TIMEOUT_SECONDS=300
 """
+
+
+def test_initialize_installation_only_adds_runtime_ignore_rule(tmp_path):
+    initialize_installation(tmp_path)
+
+    assert not (tmp_path / ".multi-agent-orchestrator").exists()
+    assert (tmp_path / ".gitignore").read_text(encoding="utf-8") == (
+        "/.multi-agent-orchestrator/\n"
+    )
 
 
 def write_runtime_env(root: Path, content: str) -> Path:
@@ -130,6 +141,17 @@ def test_load_config_accepts_comments_blank_lines_and_basic_quotes(tmp_path):
     assert config.transport == "tmux"
 
 
+def test_load_config_accepts_explicit_enabled_providers(tmp_path):
+    write_runtime_env(
+        tmp_path,
+        "MAO_PRIMARY_PROVIDER=claude\nMAO_ENABLED_PROVIDERS=claude,antigravity\n",
+    )
+
+    config = load_config(tmp_path, {})
+
+    assert config.enabled_providers == ("claude", "antigravity")
+
+
 @pytest.mark.parametrize(
     "content",
     [
@@ -152,6 +174,10 @@ def test_load_config_rejects_unsafe_or_malformed_dotenv(tmp_path, content):
     ("key", "value"),
     [
         ("MAO_PRIMARY_PROVIDER", "other"),
+        ("MAO_ENABLED_PROVIDERS", ""),
+        ("MAO_ENABLED_PROVIDERS", "codex,unknown"),
+        ("MAO_ENABLED_PROVIDERS", "codex,codex"),
+        ("MAO_ENABLED_PROVIDERS", "claude,antigravity"),
         ("MAO_TRANSPORT", "ssh"),
         ("MAO_TRANSPORT_FALLBACK", "ssh"),
         ("MAO_EXECUTION_PROFILE", "safe"),

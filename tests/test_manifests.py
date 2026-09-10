@@ -11,7 +11,7 @@ def load(relative):
 def test_codex_plugin_manifest_names_canonical_skill():
     data = load("plugins/multi-agent-orchestrator/.codex-plugin/plugin.json")
     assert data["name"] == "multi-agent-orchestrator"
-    assert data["version"] == "0.1.0"
+    assert data["version"] == "0.1.1"
     assert data["skills"] == "./skills/"
     assert data["license"] == "MIT"
     assert data["repository"] == "https://github.com/h0ngc/multi-agent-orchestrator"

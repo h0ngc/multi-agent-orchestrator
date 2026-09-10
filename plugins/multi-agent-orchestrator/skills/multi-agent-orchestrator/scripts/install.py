@@ -12,7 +12,7 @@ import subprocess
 import tempfile
 from typing import Sequence
 
-from mao_core.config import initialize_project
+from mao_core.config import initialize_installation
 from mao_core.errors import MaoError
 
 
@@ -306,7 +306,7 @@ def install_project(project: Path, hosts: Sequence[str]) -> InstallReport:
         prepared[host] = (destination, manifest)
 
     _validate_runtime_targets(project_root)
-    initialize_project(project_root)
+    initialize_installation(project_root)
     installed: list[str] = []
     managed: list[str] = []
     for host in selected:

@@ -142,15 +142,11 @@ One canonical skill implementation lives under plugin root. Installers copy or r
 
 ## 7. Project-Local Configuration
 
-First invocation detects target project root and creates:
+Installation detects target project root and creates only:
 
 ```text
 target-project/
-├── .gitignore
-└── .multi-agent-orchestrator/
-    ├── .env
-    ├── state.json
-    └── runs/
+└── .gitignore
 ```
 
 Installer appends this exact root-relative ignore rule if no equivalent rule exists:
@@ -161,10 +157,11 @@ Installer appends this exact root-relative ignore rule if no equivalent rule exi
 
 Existing `.gitignore` content, line endings, and terminal newline are preserved. Repeated setup is idempotent. Existing root `.env` files are never read, modified, or reused as orchestrator configuration.
 
-User-editable settings live in `.multi-agent-orchestrator/.env`:
+Initial discovery and partial selection create no runtime files. After user explicitly selects enabled providers, primary, exact enabled-provider models, and transport, successful probes create `.multi-agent-orchestrator/.env` plus verified state. User-editable settings include:
 
 ```dotenv
 MAO_PRIMARY_PROVIDER=codex
+MAO_ENABLED_PROVIDERS=codex,claude,antigravity
 MAO_CODEX_MODEL=gpt-6-astra
 MAO_CLAUDE_MODEL=claude-opus-4-6
 MAO_ANTIGRAVITY_MODEL=gemini-3.1-pro-high
@@ -424,7 +421,7 @@ Distribution supports:
 3. Antigravity plugin installation/import where supported.
 4. GitHub clone plus project-local installer.
 
-Project-local installer places host-recognized skill files for Codex and Claude and initializes project-local runtime configuration. Current Antigravity CLI exposes `agy plugin install <target>` and can register a locally cloned plugin. That registration may live in Antigravity's user plugin registry even though plugin source is local; runtime configuration and run records remain project-local.
+Project-local installer places host-recognized skill files for Codex and Claude and adds runtime ignore rule, but does not initialize runtime configuration. Successful first-run setup creates project-local config and state. Current Antigravity CLI exposes `agy plugin install <target>` and can register a locally cloned plugin. That registration may live in Antigravity's user plugin registry even though plugin source is local; runtime configuration and run records remain project-local.
 
 README documents host-specific installation commands, exact uninstallation steps, dangerous execution defaults, supported platforms, and Antigravity registration limitation.
 

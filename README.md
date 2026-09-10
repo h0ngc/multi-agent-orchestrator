@@ -68,6 +68,8 @@ Targets:
 
 Rerun same command to update managed files. Manifest-listed files are replaced; unrelated files remain untouched. Unsafe symlinks, traversal, and unmanaged filename collisions fail before install.
 
+Install only copies skill files and adds `/.multi-agent-orchestrator/` to project `.gitignore`. It does not create `.env`, state, or run records before setup succeeds.
+
 ## First-run setup
 
 Set controller path from installed skill, then inspect available CLIs, auth, model candidates, probes, transports, and exact relaunch command:
@@ -78,12 +80,15 @@ python3 .agents/skills/multi-agent-orchestrator/scripts/mao_cli.py \
   --current-provider codex --current-model <current-exact-model>
 ```
 
-Candidate lists are marked exhaustive only when installed CLI supplies authoritative enumeration. Claude discovery first opens an isolated safe-mode CLI session and reads its native `/model` menu without making a model call; selectors such as `sonnet[1m]` remain non-exhaustive because the menu is not a machine-readable provider API. If `expect` or the interactive menu is unavailable, discovery falls back to aliases from `claude --help`. Codex cache entries are also non-exhaustive. Inaccessible sessions include exact reason. Choose exact primary and critic models from reported candidates, then probe and persist them:
+Candidate lists are marked exhaustive only when installed CLI supplies authoritative enumeration. Claude discovery first opens an isolated safe-mode CLI session and reads its native `/model` menu without making a model call; selectors such as `sonnet[1m]` remain non-exhaustive because the menu is not a machine-readable provider API. If `expect` or the interactive menu is unavailable, discovery falls back to aliases from `claude --help`. Codex cache entries are also non-exhaustive. Inaccessible sessions include exact reason.
+
+Choose in order: enabled providers, primary provider, exact model for each enabled provider, then transport. Initial persistence requires every selection explicitly, including `MAO_ENABLED_PROVIDERS`; disabled providers remain visible for diagnosis but are not probed or used:
 
 ```bash
 python3 .agents/skills/multi-agent-orchestrator/scripts/mao_cli.py \
   --project /absolute/path/to/project configure \
   --set MAO_PRIMARY_PROVIDER=codex \
+  --set MAO_ENABLED_PROVIDERS=codex,claude,antigravity \
   --set MAO_CODEX_MODEL=gpt-model \
   --set MAO_CLAUDE_MODEL=claude-model \
   --set MAO_ANTIGRAVITY_MODEL=gemini-model \
@@ -91,7 +96,7 @@ python3 .agents/skills/multi-agent-orchestrator/scripts/mao_cli.py \
   --current-provider codex --current-model <current-exact-model> --probe
 ```
 
-Initial discovery does not launch model probes. After user chooses exact models, `--probe` launches tiny provider model calls and may consume quota. Selected values persist only when those exact probes succeed. Controller cannot detect whether current host session already uses dangerous permission mode; follow returned relaunch command when required. If current model is unknown, setup conservatively requests relaunch.
+Initial discovery does not launch model probes or create runtime configuration. Partial initial selections return `missing_selections` and also make no model call. Configuration changes without `--probe` are rejected. After user chooses exact models, `--probe` launches tiny calls only for enabled providers and may consume quota. `.env` and verified state persist only when every enabled exact-model probe and selected transport validation succeeds. Controller cannot detect whether current host session already uses dangerous permission mode; follow returned relaunch command when required. If current model is unknown, setup conservatively requests relaunch.
 
 ## Invocation
 
@@ -107,12 +112,13 @@ Packet input includes acceptance conditions, applicable instruction paths, unifi
 
 ## Project-local environment
 
-Runtime state lives under `.multi-agent-orchestrator/`; installer adds exact `/.multi-agent-orchestrator/` rule to project `.gitignore`. Local settings live in `.multi-agent-orchestrator/.env`, not global agent configuration.
+After successful setup, runtime state lives under `.multi-agent-orchestrator/`; installer adds exact `/.multi-agent-orchestrator/` rule to project `.gitignore`. Local settings live in `.multi-agent-orchestrator/.env`, not global agent configuration.
 
 Defaults:
 
 ```dotenv
 MAO_PRIMARY_PROVIDER=codex
+MAO_ENABLED_PROVIDERS=codex,claude,antigravity
 MAO_CODEX_MODEL=gpt-6-astra
 MAO_CLAUDE_MODEL=claude-opus-4-6
 MAO_ANTIGRAVITY_MODEL=gemini-3.1-pro-high

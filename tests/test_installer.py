@@ -61,7 +61,7 @@ def test_codex_and_claude_local_install_copy_canonical_skill(
     assert report.installed_hosts == ("codex", "claude")
     assert report.antigravity_registration_required is False
     assert report.antigravity_command == []
-    assert (project / ".multi-agent-orchestrator/.env").exists()
+    assert not (project / ".multi-agent-orchestrator").exists()
     assert ".multi-agent-orchestrator/" in (project / ".gitignore").read_text()
 
 
