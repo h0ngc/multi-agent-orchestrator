@@ -78,7 +78,7 @@ python3 .agents/skills/multi-agent-orchestrator/scripts/mao_cli.py \
   --current-provider codex --current-model <current-exact-model>
 ```
 
-Candidate lists are marked exhaustive only when installed CLI supplies authoritative enumeration. Claude aliases and Codex cache entries are normally non-exhaustive. Inaccessible sessions include exact reason. Choose exact primary and critic models from reported candidates, then probe and persist them:
+Candidate lists are marked exhaustive only when installed CLI supplies authoritative enumeration. Claude discovery first opens an isolated safe-mode CLI session and reads its native `/model` menu without making a model call; selectors such as `sonnet[1m]` remain non-exhaustive because the menu is not a machine-readable provider API. If `expect` or the interactive menu is unavailable, discovery falls back to aliases from `claude --help`. Codex cache entries are also non-exhaustive. Inaccessible sessions include exact reason. Choose exact primary and critic models from reported candidates, then probe and persist them:
 
 ```bash
 python3 .agents/skills/multi-agent-orchestrator/scripts/mao_cli.py \

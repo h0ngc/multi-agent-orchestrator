@@ -9,7 +9,7 @@ Host | CLI version | Primary model | Critic models | Transport | Install | Confi
 Codex | 0.153.0 | gpt-6-astra | claude-opus-4-6, gemini-3.1-pro-high | direct | Offline pass | Exact probe pass | Strict smoke pass | Offline pass | Offline pass | Provider smoke pass
 Claude Code | 2.1.220 | claude-opus-4-6 | gpt-6-astra, gemini-3.1-pro-high | direct | Offline pass | Exact provider-reported probe pass | Strict smoke pass | Offline pass | Offline pass | Provider smoke pass
 Antigravity | 1.2.0 | gemini-3.1-pro-high | gpt-6-astra, claude-opus-4-6 | direct | Local plugin registration pass | Exact request probe pass | Strict smoke pass | Offline pass | Offline pass | Provider smoke pass
-Cross-host | Fake CLIs | Fake exact identities | Fake distinct vendors | direct/orca/tmux | Pass | Pass | Pass | Pass | Pass | 403-test offline gate pass
+Cross-host | Fake CLIs | Fake exact identities | Fake distinct vendors | direct/orca/tmux | Pass | Pass | Pass | Pass | Pass | 405-test offline gate pass
 
 ## Offline evidence
 
@@ -21,6 +21,8 @@ Cross-host | Fake CLIs | Fake exact identities | Fake distinct vendors | direct/
 - Skill validator: pass.
 - Real direct provider smoke: pass for all three selected models.
 - Codex and Antigravity CLIs accepted exact requested model IDs but did not echo model IDs; evidence records `requested_fallback`. Claude returned exact provider-reported model ID.
+- Fresh project-local setup passed with Codex `gpt-5.6-sol`, Claude selector `sonnet[1m]` resolved as `claude-sonnet-5[1m]`, Antigravity `gemini-3.8-flash-medium`, and direct transport.
+- Claude CLI 2.1.220 native `/model` menu was read without a model call and exposed `sonnet[1m]` as `Sonnet 5 (1M context)`; fallback help aliases remain non-exhaustive.
 - Full primary-host workflow, Orca live workflow, and tmux live workflow: Not run.
 
 ## Publication evidence

@@ -200,7 +200,7 @@ Setup performs these stages:
 Provider behavior:
 
 - **Codex:** Prefer app-server model data or provider-owned model cache. Probe selected exact model.
-- **Claude Code:** Use native model-list support if added by installed version. Current versions without an authoritative list expose known aliases/candidates and validate selections through tiny JSON-output probes. Never label this candidate set as exhaustive.
+- **Claude Code:** Read the installed CLI's native `/model` menu through an isolated safe-mode PTY when available, then fall back to help aliases. Validate selections through tiny JSON-output probes. Never label either candidate set as exhaustive because neither is an authoritative machine-readable provider list.
 - **Antigravity:** Use `agy models`, then probe selected exact model.
 
 Model records include:

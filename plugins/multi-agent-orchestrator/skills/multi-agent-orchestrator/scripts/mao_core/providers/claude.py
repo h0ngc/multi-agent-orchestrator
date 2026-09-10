@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 import json
 import os
 from pathlib import Path
@@ -19,9 +20,15 @@ _PROBE_PROMPT = "Reply with exact text OK."
 class ClaudeAdapter:
     name = "claude"
 
-    def __init__(self, executable: str = "claude", timeout_seconds: int = 300):
+    def __init__(
+        self,
+        executable: str = "claude",
+        timeout_seconds: int = 300,
+        model_menu_reader: Callable[[str, int], str] | None = None,
+    ):
         self.executable = executable
         self.timeout_seconds = timeout_seconds
+        self.model_menu_reader = model_menu_reader or _read_interactive_model_menu
 
     def detect(self) -> dict:
         executable = _resolve_executable(self.executable)
@@ -43,6 +50,26 @@ class ClaudeAdapter:
         return {"status": status}
 
     def list_models(self) -> list[ModelCandidate]:
+        candidates: list[ModelCandidate] = []
+        seen: set[str] = set()
+        try:
+            menu = self.model_menu_reader(
+                self.executable,
+                min(self.timeout_seconds, 15),
+            )
+        except (OSError, MaoError):
+            menu = ""
+        for requested, label in _models_from_menu(menu):
+            seen.add(requested)
+            candidates.append(
+                ModelCandidate(
+                    requested=requested,
+                    vendor=classify_vendor(self.name, requested),
+                    source=f"claude interactive /model: {label}",
+                    exhaustive=False,
+                )
+            )
+
         aliases = []
         with tempfile.TemporaryDirectory(prefix="mao-claude-models-") as directory:
             result = run_process(
@@ -50,17 +77,18 @@ class ClaudeAdapter:
             )
         if result.exit_code == 0:
             aliases = _aliases_from_help(result.stdout)
-
-        candidates = [
-            ModelCandidate(
-                requested=alias,
-                vendor=classify_vendor(self.name, alias),
-                source="claude --help",
-                exhaustive=False,
+        for alias in aliases:
+            if alias in seen:
+                continue
+            seen.add(alias)
+            candidates.append(
+                ModelCandidate(
+                    requested=alias,
+                    vendor=classify_vendor(self.name, alias),
+                    source="claude --help",
+                    exhaustive=False,
+                )
             )
-            for alias in aliases
-        ]
-        seen = set(aliases)
         configured = os.environ.get("MAO_CLAUDE_CANDIDATES", "")
         for value in configured.split(","):
             requested = value.strip()
@@ -164,6 +192,77 @@ def _aliases_from_help(help_text: str) -> list[str]:
         return []
     alias_text = option.group(1).split("or a model's full name", 1)[0]
     return list(dict.fromkeys(re.findall(r"['\"]([A-Za-z0-9_.-]+)['\"]", alias_text)))
+
+
+def _models_from_menu(menu_text: str) -> list[tuple[str, str]]:
+    candidates: list[tuple[str, str]] = []
+    for line in menu_text.splitlines():
+        numbered = re.match(r"^\s*\d+\.\s+(.+)$", line)
+        if numbered is None:
+            continue
+        content = re.sub(r"^\(selected\)\s+", "", numbered.group(1))
+        if content.startswith("Default"):
+            continue
+        match = re.match(r"(Opus(?:\s+\d+(?:\.\d+)?)?\s+\(1M context\))", content)
+        if match is not None:
+            candidates.append(("opus[1m]", match.group(1)))
+            continue
+        match = re.match(r"(Sonnet(?:\s+\d+(?:\.\d+)?)?\s+\(1M context\))", content)
+        if match is not None:
+            candidates.append(("sonnet[1m]", match.group(1)))
+            continue
+        if content.startswith("Sonnet"):
+            candidates.append(("sonnet", "Sonnet"))
+            continue
+        if content.startswith("Opus"):
+            candidates.append(("opus", "Opus"))
+            continue
+        if content.startswith("Haiku"):
+            candidates.append(("haiku", "Haiku"))
+    return list(dict.fromkeys(candidates))
+
+
+def _read_interactive_model_menu(executable: str, timeout_seconds: int) -> str:
+    expect = shutil.which("expect")
+    if expect is None:
+        return ""
+    script = r'''
+log_user 1
+set timeout [lindex $argv 1]
+set executable [lindex $argv 0]
+spawn -noecho $executable --ax-screen-reader --dangerously-skip-permissions --safe-mode
+set menu_opened 0
+expect {
+    -re {Yes, I trust this folder} {
+        send "y\r"
+        exp_continue
+    }
+    -re {bypass permissions on} {
+        if {!$menu_opened} {
+            send "/model\r"
+            set menu_opened 1
+        }
+        exp_continue
+    }
+    -re {Enter to set as default} {
+        send "\033"
+        after 100
+        send "/exit\r"
+        expect eof
+    }
+    timeout { exit 2 }
+    eof {}
+}
+'''
+    with tempfile.TemporaryDirectory(prefix="mao-claude-menu-") as directory:
+        result = run_process(
+            [expect, "-f", "-", executable, str(timeout_seconds)],
+            Path(directory),
+            timeout_seconds + 3,
+            stdin=script,
+        )
+    output = result.stdout + result.stderr
+    return output if "Select model" in output else ""
 
 
 def _with_native_usage(parsed: dict, usage: object) -> dict:
