@@ -48,6 +48,7 @@ def _parser() -> argparse.ArgumentParser:
     configure.add_argument("--set", dest="settings", action="append", default=[])
     configure.add_argument("--current-provider", choices=("codex", "claude", "antigravity"))
     configure.add_argument("--current-model")
+    configure.add_argument("--current-effort")
     configure.add_argument("--probe", action="store_true")
 
     prepare = commands.add_parser("prepare")
@@ -86,11 +87,20 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _default_providers(timeout_seconds: int) -> dict[str, ProviderAdapter]:
+def _default_providers(config: Config) -> dict[str, ProviderAdapter]:
     return {
-        "codex": CodexAdapter(timeout_seconds=timeout_seconds),
-        "claude": ClaudeAdapter(timeout_seconds=timeout_seconds),
-        "antigravity": AntigravityAdapter(timeout_seconds=timeout_seconds),
+        "codex": CodexAdapter(
+            timeout_seconds=config.timeout_seconds,
+            effort=config.codex_effort,
+        ),
+        "claude": ClaudeAdapter(
+            timeout_seconds=config.timeout_seconds,
+            effort=config.claude_effort,
+        ),
+        "antigravity": AntigravityAdapter(
+            timeout_seconds=config.timeout_seconds,
+            effort=config.antigravity_effort,
+        ),
     }
 
 
@@ -172,9 +182,15 @@ def _eligible_reviewers(project: Path, config: Config) -> tuple[list[str], bool]
     expected_models = {
         provider: all_models[provider] for provider in config.enabled_providers
     }
+    all_efforts = {
+        "codex": config.codex_effort,
+        "claude": config.claude_effort,
+        "antigravity": config.antigravity_effort,
+    }
     if any(
         item.provider not in expected_models
         or item.requested != expected_models[item.provider]
+        or item.effort != all_efforts[item.provider]
         for item in identities
     ):
         raise MaoError(
@@ -223,7 +239,7 @@ def _execute(
         if args.command == "configure"
         else load_config(project, environ)
     )
-    providers = dict(provider_values or _default_providers(config.timeout_seconds))
+    providers = dict(provider_values or _default_providers(config))
     transports = dict(transport_values or _default_transports())
 
     if args.command == "configure":
@@ -231,12 +247,20 @@ def _execute(
             "MAO_PRIMARY_PROVIDER",
             "MAO_ENABLED_PROVIDERS",
             *[
-                {
-                    "codex": "MAO_CODEX_MODEL",
-                    "claude": "MAO_CLAUDE_MODEL",
-                    "antigravity": "MAO_ANTIGRAVITY_MODEL",
-                }[provider]
+                key
                 for provider in config.enabled_providers
+                for key in (
+                    {
+                        "codex": "MAO_CODEX_MODEL",
+                        "claude": "MAO_CLAUDE_MODEL",
+                        "antigravity": "MAO_ANTIGRAVITY_MODEL",
+                    }[provider],
+                    {
+                        "codex": "MAO_CODEX_EFFORT",
+                        "claude": "MAO_CLAUDE_EFFORT",
+                        "antigravity": "MAO_ANTIGRAVITY_EFFORT",
+                    }[provider],
+                )
             ],
             "MAO_TRANSPORT",
         ]
@@ -252,6 +276,7 @@ def _execute(
             providers,
             current_provider=args.current_provider,
             current_model=args.current_model,
+            current_effort=args.current_effort,
             probe=should_probe,
             transports=transports,
         )

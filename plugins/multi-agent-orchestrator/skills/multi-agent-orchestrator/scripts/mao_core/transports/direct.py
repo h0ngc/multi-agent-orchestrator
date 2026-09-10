@@ -17,4 +17,5 @@ class DirectTransport:
             request.packet,
             request.schema,
             request.cwd,
+            request.effort,
         )

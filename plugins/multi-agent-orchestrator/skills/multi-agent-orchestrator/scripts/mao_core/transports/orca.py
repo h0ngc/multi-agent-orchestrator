@@ -93,7 +93,9 @@ class OrcaTransport:
                         "--worktree",
                         "current",
                         "--command",
-                        _antigravity_terminal_command(provider, request.model),
+                        _antigravity_terminal_command(
+                            provider, request.model, request.effort
+                        ),
                         "--json",
                     ],
                     request,
@@ -112,7 +114,14 @@ class OrcaTransport:
             ]
             if terminal_handle is None:
                 start_args.extend(
-                    ["--agent", request.provider, "--model", request.model]
+                    [
+                        "--agent",
+                        request.provider,
+                        "--model",
+                        request.model,
+                        "--effort",
+                        request.effort,
+                    ]
                 )
             else:
                 start_args.extend(["--terminal", terminal_handle])
@@ -484,16 +493,25 @@ def _task_spec(request: InvocationRequest) -> str:
     )
 
 
-def _antigravity_terminal_command(provider: ProviderAdapter, model: str) -> str:
+def _antigravity_terminal_command(
+    provider: ProviderAdapter, model: str, effort: str
+) -> str:
     executable = str(getattr(provider, "executable", "agy"))
-    if Path(executable).name != "agy" or _contains_control(executable, model):
+    if Path(executable).name != "agy" or _contains_control(executable, model, effort):
         raise MaoError(
             "CONFIG_INVALID",
             "Antigravity terminal command contains a non-allowlisted argument",
             {"provider": "antigravity"},
         )
     return shlex.join(
-        [executable, "--model", model, "--dangerously-skip-permissions"]
+        [
+            executable,
+            "--model",
+            model,
+            "--effort",
+            effort,
+            "--dangerously-skip-permissions",
+        ]
     )
 
 

@@ -17,8 +17,11 @@ DEFAULT_VALUES = {
     "MAO_PRIMARY_PROVIDER": "codex",
     "MAO_ENABLED_PROVIDERS": "codex,claude,antigravity",
     "MAO_CODEX_MODEL": "gpt-6-astra",
+    "MAO_CODEX_EFFORT": "high",
     "MAO_CLAUDE_MODEL": "claude-opus-4-6",
+    "MAO_CLAUDE_EFFORT": "high",
     "MAO_ANTIGRAVITY_MODEL": "gemini-3.1-pro-high",
+    "MAO_ANTIGRAVITY_EFFORT": "high",
     "MAO_TRANSPORT": "direct",
     "MAO_TRANSPORT_FALLBACK": "",
     "MAO_EXECUTION_PROFILE": "yolo",
@@ -53,6 +56,9 @@ class Config:
     max_total_critic_calls: int = 4
     max_transport_attempts: int = 2
     timeout_seconds: int = 300
+    codex_effort: str = "high"
+    claude_effort: str = "high"
+    antigravity_effort: str = "high"
     enabled_providers: tuple[str, ...] = ("codex", "claude", "antigravity")
 
 
@@ -262,6 +268,15 @@ def _build_config(values: Mapping[str, str]) -> Config:
             key="MAO_ENABLED_PROVIDERS",
         )
 
+    effort_values = {
+        "MAO_CODEX_EFFORT": {"low", "medium", "high", "xhigh", "max", "ultra"},
+        "MAO_CLAUDE_EFFORT": {"low", "medium", "high", "xhigh", "max"},
+        "MAO_ANTIGRAVITY_EFFORT": {"low", "medium", "high"},
+    }
+    for key, allowed in effort_values.items():
+        if values[key] not in allowed:
+            raise _config_error("Unsupported provider effort", key=key)
+
     transport = values["MAO_TRANSPORT"]
     transports = {"direct", "orca", "tmux"}
     if transport not in transports:
@@ -298,6 +313,9 @@ def _build_config(values: Mapping[str, str]) -> Config:
             values, "MAO_MAX_TRANSPORT_ATTEMPTS", 2
         ),
         timeout_seconds=_positive_int(values, "MAO_TIMEOUT_SECONDS"),
+        codex_effort=values["MAO_CODEX_EFFORT"],
+        claude_effort=values["MAO_CLAUDE_EFFORT"],
+        antigravity_effort=values["MAO_ANTIGRAVITY_EFFORT"],
         enabled_providers=enabled,
     )
 

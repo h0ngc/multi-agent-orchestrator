@@ -25,10 +25,12 @@ class ClaudeAdapter:
         executable: str = "claude",
         timeout_seconds: int = 300,
         model_menu_reader: Callable[[str, int], str] | None = None,
+        effort: str = "high",
     ):
         self.executable = executable
         self.timeout_seconds = timeout_seconds
         self.model_menu_reader = model_menu_reader or _read_interactive_model_menu
+        self.effort = effort
 
     def detect(self) -> dict:
         executable = _resolve_executable(self.executable)
@@ -105,14 +107,35 @@ class ClaudeAdapter:
             )
         return candidates
 
-    def validate_model(self, model: str, cwd: Path) -> ModelIdentity:
+    def list_efforts(self, model: str) -> dict:
+        del model
+        with tempfile.TemporaryDirectory(prefix="mao-claude-efforts-") as directory:
+            result = run_process(
+                [self.executable, "--help"],
+                Path(directory),
+                min(self.timeout_seconds, 10),
+            )
+        values = _efforts_from_help(result.stdout) if result.exit_code == 0 else []
+        return {
+            "values": values,
+            "default": None,
+            "source": "claude --help",
+            "exhaustive": bool(values),
+        }
+
+    def validate_model(
+        self, model: str, cwd: Path, effort: str | None = None
+    ) -> ModelIdentity:
         del cwd
+        selected_effort = effort or self.effort
         args = [
             self.executable,
             "-p",
             _PROBE_PROMPT,
             "--model",
             model,
+            "--effort",
+            selected_effort,
             "--output-format",
             "json",
             "--dangerously-skip-permissions",
@@ -141,13 +164,17 @@ class ClaudeAdapter:
         packet: Path,
         schema: Path,
         cwd: Path,
+        effort: str | None = None,
     ) -> ProcessResult:
+        selected_effort = effort or self.effort
         args = [
             self.executable,
             "-p",
             packet.read_text(encoding="utf-8"),
             "--model",
             model,
+            "--effort",
+            selected_effort,
             "--output-format",
             "json",
             "--json-schema",
@@ -192,6 +219,21 @@ def _aliases_from_help(help_text: str) -> list[str]:
         return []
     alias_text = option.group(1).split("or a model's full name", 1)[0]
     return list(dict.fromkeys(re.findall(r"['\"]([A-Za-z0-9_.-]+)['\"]", alias_text)))
+
+
+def _efforts_from_help(help_text: str) -> list[str]:
+    option = re.search(
+        r"--effort(?:\s+<level>)?(.*?)(?=\n\s{2}(?:-|Commands:)|\Z)",
+        help_text,
+        flags=re.DOTALL,
+    )
+    if option is None:
+        return []
+    return list(
+        dict.fromkeys(
+            re.findall(r"\b(?:low|medium|high|xhigh|max|ultra)\b", option.group(1))
+        )
+    )
 
 
 def _models_from_menu(menu_text: str) -> list[tuple[str, str]]:

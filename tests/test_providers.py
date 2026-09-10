@@ -24,22 +24,24 @@ FAKES = Path(__file__).parent / "fakes"
 
 
 def test_codex_review_command_contains_exact_yolo_flag(fake_paths, packet, schema):
-    adapter = CodexAdapter(executable=fake_paths.codex)
+    adapter = CodexAdapter(executable=fake_paths.codex, effort="max")
 
     result = adapter.invoke("gpt-test", packet, schema, packet.parent)
 
     assert result.exit_code == 0
     args = fake_paths.last_args("codex")
-    assert args[:7] == [
+    assert args[:9] == [
         "exec",
         "--model",
         "gpt-test",
+        "-c",
+        'model_reasoning_effort="max"',
         "--dangerously-bypass-approvals-and-sandbox",
         "--json",
         "--skip-git-repo-check",
         "--output-schema",
     ]
-    assert args[8:] == ["Review this minimal packet."]
+    assert args[10:] == ["Review this minimal packet."]
 
 
 def test_codex_review_uses_compatible_copy_without_changing_canonical_schema(
@@ -105,7 +107,7 @@ def test_codex_parses_structured_review_before_final_jsonl_event(
 def test_claude_review_command_contains_exact_skip_permissions_flag(
     fake_paths, packet, schema
 ):
-    adapter = ClaudeAdapter(executable=fake_paths.claude)
+    adapter = ClaudeAdapter(executable=fake_paths.claude, effort="xhigh")
 
     result = adapter.invoke("claude-test", packet, schema, packet.parent)
 
@@ -115,6 +117,8 @@ def test_claude_review_command_contains_exact_skip_permissions_flag(
         "Review this minimal packet.",
         "--model",
         "claude-test",
+        "--effort",
+        "xhigh",
         "--output-format",
         "json",
         "--json-schema",
@@ -149,7 +153,7 @@ def test_claude_review_removes_unsupported_schema_dialect_declaration(
 def test_agy_review_command_contains_exact_skip_permissions_flag(
     fake_paths, packet, schema
 ):
-    adapter = AntigravityAdapter(executable=fake_paths.agy)
+    adapter = AntigravityAdapter(executable=fake_paths.agy, effort="high")
 
     result = adapter.invoke("gemini-test", packet, schema, packet.parent)
 
@@ -159,6 +163,8 @@ def test_agy_review_command_contains_exact_skip_permissions_flag(
         "Review this minimal packet.",
         "--model",
         "gemini-test",
+        "--effort",
+        "high",
         "--output-format",
         "json",
         "--json-schema",

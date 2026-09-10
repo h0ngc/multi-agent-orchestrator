@@ -31,6 +31,40 @@ def test_codex_models_come_from_provider_cache_with_fetch_timestamp(fake_paths):
     )
 
 
+def test_codex_efforts_come_from_selected_model_cache_entry(fake_paths):
+    adapter = CodexAdapter(
+        executable=fake_paths.codex,
+        models_cache=FIXTURES / "codex-models-cache.json",
+    )
+
+    report = adapter.list_efforts("gpt-6-astra")
+
+    assert report["values"] == ["low", "high", "max"]
+    assert report["default"] == "high"
+    assert report["exhaustive"] is True
+    assert "models_cache.json" in report["source"]
+
+
+def test_claude_and_antigravity_efforts_come_from_local_cli_help(fake_paths):
+    claude = ClaudeAdapter(executable=fake_paths.claude).list_efforts("sonnet")
+    antigravity = AntigravityAdapter(executable=fake_paths.agy).list_efforts(
+        "gemini-3.1-pro-high"
+    )
+
+    assert claude == {
+        "values": ["low", "medium", "high", "xhigh", "max"],
+        "default": None,
+        "source": "claude --help",
+        "exhaustive": True,
+    }
+    assert antigravity == {
+        "values": ["low", "medium", "high"],
+        "default": None,
+        "source": "agy --help",
+        "exhaustive": True,
+    }
+
+
 def test_claude_candidate_list_is_marked_non_exhaustive(fake_paths):
     adapter = ClaudeAdapter(executable=fake_paths.claude)
 

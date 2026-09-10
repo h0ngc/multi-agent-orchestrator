@@ -28,6 +28,14 @@ def test_readme_documents_local_runtime_path_and_ignore_rule():
     assert "MAO_MAX_TOTAL_CRITIC_CALLS=4" in text
 
 
+def test_readme_documents_local_effort_discovery_and_settings():
+    text = README.read_text(encoding="utf-8")
+    assert "MAO_CODEX_EFFORT=" in text
+    assert "MAO_CLAUDE_EFFORT=" in text
+    assert "MAO_ANTIGRAVITY_EFFORT=" in text
+    assert "No browser or web search is used" in text
+
+
 def test_readme_has_required_sections_in_order_and_no_fake_remote():
     text = README.read_text(encoding="utf-8")
     headings = [

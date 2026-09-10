@@ -21,6 +21,9 @@ with log.open("a", encoding="utf-8") as stream:
 
 if "--version" in args:
     print("1.1.fake")
+elif "--help" in args:
+    print("--quality Rendering quality (ultra)")
+    print("--effort Reasoning effort (low|medium|high)")
 elif args and args[0] == "models":
     fixture = Path(os.environ["MAO_FAKE_FIXTURES"]) / "agy-models.txt"
     print(fixture.read_text(encoding="utf-8"), end="")

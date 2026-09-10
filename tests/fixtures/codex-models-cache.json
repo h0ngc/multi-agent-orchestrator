@@ -2,7 +2,16 @@
   "client_version": "0.fake",
   "fetched_at": "2026-09-09T03:48:03.790219Z",
   "models": [
-    {"slug": "gpt-6-astra", "display_name": "GPT-6-Astra"},
+    {
+      "slug": "gpt-6-astra",
+      "display_name": "GPT-6-Astra",
+      "default_reasoning_level": "high",
+      "supported_reasoning_levels": [
+        {"effort": "low", "description": "fast"},
+        {"effort": "high", "description": "deep"},
+        {"effort": "max", "description": "maximum"}
+      ]
+    },
     {"slug": "o3", "display_name": "o3"}
   ]
 }

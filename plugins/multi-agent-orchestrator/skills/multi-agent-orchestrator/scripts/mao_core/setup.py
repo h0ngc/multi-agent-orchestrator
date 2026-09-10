@@ -27,7 +27,7 @@ _FLAGS = {
 }
 
 
-def launcher_command(provider: str, model: str) -> list[str]:
+def launcher_command(provider: str, model: str, effort: str) -> list[str]:
     if provider not in _EXECUTABLES:
         raise MaoError("CONFIG_INVALID", "Unsupported primary provider", {"provider": provider})
     if (
@@ -36,7 +36,19 @@ def launcher_command(provider: str, model: str) -> list[str]:
         or any(ord(character) < 32 for character in model)
     ):
         raise MaoError("CONFIG_INVALID", "Primary model is invalid", {"provider": provider})
-    return [_EXECUTABLES[provider], "--model", model, _FLAGS[provider]]
+    if (
+        not isinstance(effort, str)
+        or not effort
+        or any(ord(character) < 32 for character in effort)
+    ):
+        raise MaoError("CONFIG_INVALID", "Primary effort is invalid", {"provider": provider})
+    command = [_EXECUTABLES[provider], "--model", model]
+    if provider == "codex":
+        command.extend(("-c", f'model_reasoning_effort="{effort}"'))
+    else:
+        command.extend(("--effort", effort))
+    command.append(_FLAGS[provider])
+    return command
 
 
 def _selected_model(config: Config, provider: str) -> str:
@@ -44,6 +56,14 @@ def _selected_model(config: Config, provider: str) -> str:
         "codex": config.codex_model,
         "claude": config.claude_model,
         "antigravity": config.antigravity_model,
+    }[provider]
+
+
+def _selected_effort(config: Config, provider: str) -> str:
+    return {
+        "codex": config.codex_effort,
+        "claude": config.claude_effort,
+        "antigravity": config.antigravity_effort,
     }[provider]
 
 
@@ -61,10 +81,12 @@ def _provider_report(
     probe: bool,
 ) -> dict:
     selected = _selected_model(config, provider)
+    selected_effort = _selected_effort(config, provider)
     if adapter is None:
         return {
             "provider": provider,
             "selected_model": selected,
+            "selected_effort": selected_effort,
             "status": "unavailable",
             "reason": {"code": "CLI_NOT_FOUND", "message": "Provider adapter is unavailable", "details": {}},
         }
@@ -74,6 +96,7 @@ def _provider_report(
         return {
             "provider": provider,
             "selected_model": selected,
+            "selected_effort": selected_effort,
             "status": "unavailable",
             "reason": _typed_error(error, "CLI_NOT_FOUND"),
         }
@@ -81,6 +104,7 @@ def _provider_report(
         return {
             "provider": provider,
             "selected_model": selected,
+            "selected_effort": selected_effort,
             "status": "unavailable",
             "detection": detected if isinstance(detected, dict) else {},
             "reason": {
@@ -93,6 +117,7 @@ def _provider_report(
     report = {
         "provider": provider,
         "selected_model": selected,
+        "selected_effort": selected_effort,
         "status": "available",
         "detection": detected,
     }
@@ -114,10 +139,32 @@ def _provider_report(
             "exhaustive": False,
             "reason": _typed_error(error, "MODEL_LIST_UNSUPPORTED"),
         }
+    try:
+        report["efforts"] = adapter.list_efforts(selected)
+    except Exception as error:
+        report["efforts"] = {
+            "values": [],
+            "default": None,
+            "source": "unavailable",
+            "exhaustive": False,
+            "reason": _typed_error(error, "MODEL_LIST_UNSUPPORTED"),
+        }
     if probe:
+        effort_values = report["efforts"].get("values", [])
+        if report["efforts"].get("exhaustive") and selected_effort not in effort_values:
+            report["probe"] = {
+                "verified": False,
+                "reason": {
+                    "code": "MODEL_UNAVAILABLE",
+                    "message": "Selected effort is unavailable for selected model",
+                    "details": {"provider": provider, "effort": selected_effort},
+                },
+            }
+            return report
         try:
-            identity = adapter.validate_model(selected, project)
+            identity = adapter.validate_model(selected, project, selected_effort)
             report["probe"] = asdict(identity)
+            report["probe"]["effort"] = selected_effort
             report["probe"]["resolution_source"] = getattr(
                 adapter, "last_resolution_source", "unspecified"
             )
@@ -196,6 +243,7 @@ def setup_payload(
     *,
     current_provider: str | None = None,
     current_model: str | None = None,
+    current_effort: str | None = None,
     probe: bool = False,
     transports: Mapping[str, TransportAdapter] | None = None,
 ) -> dict:
@@ -218,10 +266,17 @@ def setup_payload(
         for item in provider_reports
         if item["enabled"]
     }
+    efforts_by_provider = {
+        item["provider"]: item.get("efforts", {})
+        for item in provider_reports
+        if item["enabled"]
+    }
     selected_primary_model = _selected_model(config, config.primary_provider)
+    selected_primary_effort = _selected_effort(config, config.primary_provider)
     relaunch = current_provider is not None and (
         current_provider != config.primary_provider
         or current_model != selected_primary_model
+        or current_effort != selected_primary_effort
     )
     return {
         "providers": provider_reports,
@@ -251,6 +306,11 @@ def setup_payload(
                 "options": models_by_provider,
             },
             {
+                "id": "efforts",
+                "prompt": "Select exact effort for each enabled provider",
+                "options": efforts_by_provider,
+            },
+            {
                 "id": "transport",
                 "prompt": "Select direct, Orca, or tmux transport",
                 "options": ["direct", "orca", "tmux"],
@@ -263,7 +323,11 @@ def setup_payload(
         "permission_mode_reason": "Existing host-session permission mode cannot be inspected or changed by this skill",
         "relaunch_required": relaunch,
         "relaunch_command": (
-            launcher_command(config.primary_provider, selected_primary_model)
+            launcher_command(
+                config.primary_provider,
+                selected_primary_model,
+                selected_primary_effort,
+            )
             if relaunch
             else []
         ),
@@ -320,6 +384,7 @@ def load_setup_identities(project: Path) -> list[ModelIdentity]:
                 resolved=probe["resolved"],
                 vendor=probe["vendor"],
                 verified=True,
+                effort=probe["effort"],
             )
         except (KeyError, TypeError):
             raise MaoError("STATE_TRANSITION_INVALID", "Verified model identity is invalid", {}) from None
@@ -330,6 +395,7 @@ def load_setup_identities(project: Path) -> list[ModelIdentity]:
                 identity.requested,
                 identity.resolved,
                 identity.vendor,
+                identity.effort,
             )
         ):
             raise MaoError("STATE_TRANSITION_INVALID", "Verified model identity is invalid", {})
@@ -337,6 +403,7 @@ def load_setup_identities(project: Path) -> list[ModelIdentity]:
             identity.provider in seen_providers
             or report.get("provider") != identity.provider
             or report.get("selected_model") != identity.requested
+            or report.get("selected_effort") != identity.effort
         ):
             raise MaoError("STATE_TRANSITION_INVALID", "Verified model identity is invalid", {})
         seen_providers.add(identity.provider)

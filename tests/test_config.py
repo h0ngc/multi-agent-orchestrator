@@ -17,8 +17,11 @@ from mao_core.errors import MaoError
 DEFAULT_ENV = """MAO_PRIMARY_PROVIDER=codex
 MAO_ENABLED_PROVIDERS=codex,claude,antigravity
 MAO_CODEX_MODEL=gpt-6-astra
+MAO_CODEX_EFFORT=high
 MAO_CLAUDE_MODEL=claude-opus-4-6
+MAO_CLAUDE_EFFORT=high
 MAO_ANTIGRAVITY_MODEL=gemini-3.1-pro-high
+MAO_ANTIGRAVITY_EFFORT=high
 MAO_TRANSPORT=direct
 MAO_TRANSPORT_FALLBACK=
 MAO_EXECUTION_PROFILE=yolo
@@ -178,6 +181,9 @@ def test_load_config_rejects_unsafe_or_malformed_dotenv(tmp_path, content):
         ("MAO_ENABLED_PROVIDERS", "codex,unknown"),
         ("MAO_ENABLED_PROVIDERS", "codex,codex"),
         ("MAO_ENABLED_PROVIDERS", "claude,antigravity"),
+        ("MAO_CODEX_EFFORT", "impossible"),
+        ("MAO_CLAUDE_EFFORT", "ultra"),
+        ("MAO_ANTIGRAVITY_EFFORT", "xhigh"),
         ("MAO_TRANSPORT", "ssh"),
         ("MAO_TRANSPORT_FALLBACK", "ssh"),
         ("MAO_EXECUTION_PROFILE", "safe"),

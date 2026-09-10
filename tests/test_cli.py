@@ -37,7 +37,15 @@ class FakeProvider:
     def list_models(self):
         return [ModelCandidate(self.model, self.vendor, f"{self.name} fake", self.name == "antigravity")]
 
-    def validate_model(self, model, _cwd):
+    def list_efforts(self, _model):
+        return {
+            "values": ["low", "high", "max"],
+            "default": "high",
+            "source": f"{self.name} fake",
+            "exhaustive": True,
+        }
+
+    def validate_model(self, model, _cwd, effort=None):
         self.probe_calls += 1
         if model != self.model:
             raise MaoError("MODEL_UNAVAILABLE", "bad model", {"provider": self.name})
@@ -80,13 +88,17 @@ def providers():
     }
 
 
-def test_launcher_commands_have_exact_dangerous_flags():
-    assert launcher_command("codex", "gpt-main") == [
-        "codex", "--model", "gpt-main", "--dangerously-bypass-approvals-and-sandbox"
+def test_launcher_commands_have_exact_efforts_and_dangerous_flags():
+    assert launcher_command("codex", "gpt-main", "max") == [
+        "codex", "--model", "gpt-main", "-c", 'model_reasoning_effort="max"',
+        "--dangerously-bypass-approvals-and-sandbox"
     ]
-    assert launcher_command("claude", "claude-main")[-1] == "--dangerously-skip-permissions"
-    assert launcher_command("antigravity", "gemini-main") == [
-        "agy", "--model", "gemini-main", "--dangerously-skip-permissions"
+    assert launcher_command("claude", "claude-main", "xhigh")[-3:] == [
+        "--effort", "xhigh", "--dangerously-skip-permissions"
+    ]
+    assert launcher_command("antigravity", "gemini-main", "high") == [
+        "agy", "--model", "gemini-main", "--effort", "high",
+        "--dangerously-skip-permissions"
     ]
 
 
@@ -96,6 +108,8 @@ def test_setup_payload_is_truthful_machine_readable_and_probes_exact_models(tmp_
         "codex", "claude", "antigravity"
     ]
     assert all(item["probe"]["verified"] for item in payload["providers"])
+    assert all(item["probe"]["effort"] == "high" for item in payload["providers"])
+    assert all(item["efforts"]["values"] for item in payload["providers"])
     assert payload["providers"][1]["models"][0]["exhaustive"] is False
     assert payload["providers"][2]["models"][0]["exhaustive"] is True
     assert payload["permission_mode_detected"] is False
@@ -197,8 +211,11 @@ def initial_configure_args(**overrides):
         "MAO_PRIMARY_PROVIDER": "codex",
         "MAO_ENABLED_PROVIDERS": "codex,claude,antigravity",
         "MAO_CODEX_MODEL": "gpt-main",
+        "MAO_CODEX_EFFORT": "high",
         "MAO_CLAUDE_MODEL": "claude-critic",
+        "MAO_CLAUDE_EFFORT": "high",
         "MAO_ANTIGRAVITY_MODEL": "gemini-critic",
+        "MAO_ANTIGRAVITY_EFFORT": "high",
         "MAO_TRANSPORT": "direct",
     }
     settings.update(overrides)
@@ -239,8 +256,11 @@ def test_initial_configure_requires_explicit_agent_model_and_transport_selection
         "MAO_PRIMARY_PROVIDER",
         "MAO_ENABLED_PROVIDERS",
         "MAO_CODEX_MODEL",
+        "MAO_CODEX_EFFORT",
         "MAO_CLAUDE_MODEL",
+        "MAO_CLAUDE_EFFORT",
         "MAO_ANTIGRAVITY_MODEL",
+        "MAO_ANTIGRAVITY_EFFORT",
     ]
     assert all(provider.probe_calls == 0 for provider in values.values())
     assert not (tmp_path / ".multi-agent-orchestrator").exists()
@@ -284,6 +304,45 @@ def test_initial_configure_probes_only_explicitly_enabled_providers(tmp_path):
         item for item in payload["setup"]["questions"] if item["id"] == "models"
     )
     assert set(model_question["options"]) == {"codex", "claude"}
+
+
+def test_initial_configure_requires_models_and_efforts_only_for_enabled_providers(
+    tmp_path,
+):
+    code, stdout, stderr = run_cli(
+        [
+            "configure",
+            "--set", "MAO_PRIMARY_PROVIDER=codex",
+            "--set", "MAO_ENABLED_PROVIDERS=codex",
+            "--set", "MAO_TRANSPORT=direct",
+            "--probe",
+        ],
+        tmp_path,
+    )
+
+    payload = json.loads(stdout)
+    assert code == 0
+    assert stderr == ""
+    assert payload["missing_selections"] == [
+        "MAO_CODEX_MODEL",
+        "MAO_CODEX_EFFORT",
+    ]
+
+
+def test_unsupported_discovered_effort_skips_paid_probe_and_persistence(tmp_path):
+    values = providers()
+    code, stdout, stderr = run_cli(
+        initial_configure_args(MAO_CODEX_EFFORT="ultra"),
+        tmp_path,
+        provider_values=values,
+    )
+
+    payload = json.loads(stdout)
+    assert code == 0
+    assert stderr == ""
+    assert payload["applied"] is False
+    assert values["codex"].probe_calls == 0
+    assert not (tmp_path / ".multi-agent-orchestrator").exists()
 
 
 def test_prepare_records_request_but_does_not_claim_primary_implementation(tmp_path):

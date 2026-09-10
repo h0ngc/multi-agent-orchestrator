@@ -17,6 +17,7 @@ class InvocationRequest:
     cwd: Path
     timeout_seconds: int
     run_id: str
+    effort: str = ""
 
 
 class TransportAdapter(Protocol):

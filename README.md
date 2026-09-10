@@ -13,9 +13,9 @@ Current Codex, Claude Code, or Antigravity session remains primary implementer a
 Default child launchers deliberately disable approval and permission prompts:
 
 ```text
-codex --model <model> --dangerously-bypass-approvals-and-sandbox
-claude --model <model> --dangerously-skip-permissions
-agy --model <model> --dangerously-skip-permissions
+codex --model <model> -c model_reasoning_effort="<effort>" --dangerously-bypass-approvals-and-sandbox
+claude --model <model> --effort <effort> --dangerously-skip-permissions
+agy --model <model> --effort <effort> --dangerously-skip-permissions
 ```
 
 Use only with CLIs, plugins, repositories, and prompts you trust. Packet isolation and before/after mutation detection reduce accidental writes but are not an OS security boundary. A compromised CLI process can still access data available to your account. Secret-path filtering is defense in depth, not a substitute for OS isolation.
@@ -77,12 +77,13 @@ Set controller path from installed skill, then inspect available CLIs, auth, mod
 ```bash
 python3 .agents/skills/multi-agent-orchestrator/scripts/mao_cli.py \
   --project /absolute/path/to/project configure \
-  --current-provider codex --current-model <current-exact-model>
+  --current-provider codex --current-model <current-exact-model> \
+  --current-effort <current-exact-effort>
 ```
 
-Candidate lists are marked exhaustive only when installed CLI supplies authoritative enumeration. Claude discovery first opens an isolated safe-mode CLI session and reads its native `/model` menu without making a model call; selectors such as `sonnet[1m]` remain non-exhaustive because the menu is not a machine-readable provider API. If `expect` or the interactive menu is unavailable, discovery falls back to aliases from `claude --help`. Codex cache entries are also non-exhaustive. Inaccessible sessions include exact reason.
+No browser or web search is used for model or effort discovery. Results come from installed local agents: Codex `models_cache.json` for models and per-model reasoning efforts, Claude native `/model` plus `claude --help`, and `agy models` plus `agy --help`. Candidate lists are marked exhaustive only when source supports that claim. Inaccessible sessions include exact reason.
 
-Choose in order: enabled providers, primary provider, exact model for each enabled provider, then transport. Initial persistence requires every selection explicitly, including `MAO_ENABLED_PROVIDERS`; disabled providers remain visible for diagnosis but are not probed or used:
+Choose in order: enabled providers, primary provider, exact model then exact effort for each enabled provider, then transport. Initial persistence requires every selection explicitly, including `MAO_ENABLED_PROVIDERS`; disabled providers remain visible for diagnosis but are not probed or used:
 
 ```bash
 python3 .agents/skills/multi-agent-orchestrator/scripts/mao_cli.py \
@@ -90,10 +91,14 @@ python3 .agents/skills/multi-agent-orchestrator/scripts/mao_cli.py \
   --set MAO_PRIMARY_PROVIDER=codex \
   --set MAO_ENABLED_PROVIDERS=codex,claude,antigravity \
   --set MAO_CODEX_MODEL=gpt-model \
+  --set MAO_CODEX_EFFORT=high \
   --set MAO_CLAUDE_MODEL=claude-model \
+  --set MAO_CLAUDE_EFFORT=high \
   --set MAO_ANTIGRAVITY_MODEL=gemini-model \
+  --set MAO_ANTIGRAVITY_EFFORT=high \
   --set MAO_TRANSPORT=direct \
-  --current-provider codex --current-model <current-exact-model> --probe
+  --current-provider codex --current-model <current-exact-model> \
+  --current-effort <current-exact-effort> --probe
 ```
 
 Initial discovery does not launch model probes or create runtime configuration. Partial initial selections return `missing_selections` and also make no model call. Configuration changes without `--probe` are rejected. After user chooses exact models, `--probe` launches tiny calls only for enabled providers and may consume quota. `.env` and verified state persist only when every enabled exact-model probe and selected transport validation succeeds. Controller cannot detect whether current host session already uses dangerous permission mode; follow returned relaunch command when required. If current model is unknown, setup conservatively requests relaunch.
@@ -120,8 +125,11 @@ Defaults:
 MAO_PRIMARY_PROVIDER=codex
 MAO_ENABLED_PROVIDERS=codex,claude,antigravity
 MAO_CODEX_MODEL=gpt-6-astra
+MAO_CODEX_EFFORT=high
 MAO_CLAUDE_MODEL=claude-opus-4-6
+MAO_CLAUDE_EFFORT=high
 MAO_ANTIGRAVITY_MODEL=gemini-3.1-pro-high
+MAO_ANTIGRAVITY_EFFORT=high
 MAO_TRANSPORT=direct
 MAO_TRANSPORT_FALLBACK=
 MAO_EXECUTION_PROFILE=yolo

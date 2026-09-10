@@ -1103,6 +1103,11 @@ class Workflow:
             "claude": self.config.claude_model,
             "antigravity": self.config.antigravity_model,
         }
+        efforts = {
+            "codex": self.config.codex_effort,
+            "claude": self.config.claude_effort,
+            "antigravity": self.config.antigravity_effort,
+        }
         return CriticJob(
             critic,
             round_number,
@@ -1116,6 +1121,7 @@ class Workflow:
                 cwd=packet_directory,
                 timeout_seconds=self.config.timeout_seconds,
                 run_id=run.run_id,
+                effort=efforts[provider.name],
             ),
         )
 

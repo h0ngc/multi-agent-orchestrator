@@ -23,6 +23,7 @@ if "--version" in args:
     print("2.1.fake (Claude Code)")
 elif "--help" in args:
     print("--model <model> aliases: 'fable', 'opus', or 'sonnet'")
+    print("--effort <level> Effort level (low, medium, high, xhigh, max)")
 elif "unavailable-model" in args:
     print("model unavailable", file=sys.stderr)
     raise SystemExit(1)

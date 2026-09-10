@@ -69,6 +69,8 @@ def test_references_preserve_hard_safety_and_truthfulness_rules():
     assert "Critics never edit authoritative project files" in workflow
     assert "non-exhaustive" in providers
     assert "Probe exact selection before persistence" in providers
+    assert "exact effort" in providers
+    assert "No browser or web search" in providers
 
 
 def test_pressure_evidence_is_labeled_static_not_real_agent_behavior():

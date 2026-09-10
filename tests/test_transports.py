@@ -36,6 +36,7 @@ def request_for(tmp_path: Path) -> InvocationRequest:
         cwd=tmp_path,
         timeout_seconds=2,
         run_id="run-1",
+        effort="high",
     )
 
 
@@ -51,8 +52,10 @@ class FakeProvider:
         packet: Path,
         schema: Path,
         cwd: Path,
+        effort: str,
     ) -> ProcessResult:
         self.invocations += 1
+        assert effort == "high"
         return ProcessResult(
             status="ok",
             exit_code=0,
@@ -126,6 +129,7 @@ def test_invocation_request_has_exact_frozen_contract(invocation_request):
         "cwd",
         "timeout_seconds",
         "run_id",
+        "effort",
     ]
     with pytest.raises(AttributeError):
         invocation_request.run_id = "changed"
@@ -168,6 +172,8 @@ def test_orca_uses_run_task_worker_lifecycle(fake_orca, invocation_request):
         "codex",
         "--model",
         "test-model",
+        "--effort",
+        "high",
         "--worktree",
         "current",
         "--timeout-ms",
@@ -191,7 +197,10 @@ def test_orca_antigravity_adopts_exact_yolo_terminal(fake_orca, invocation_reque
         "--worktree",
         "current",
         "--command",
-        shlex.join(["agy", "--model", "test-model", "--dangerously-skip-permissions"]),
+        shlex.join([
+            "agy", "--model", "test-model", "--effort", "high",
+            "--dangerously-skip-permissions",
+        ]),
         "--json",
     ]
     start_args = fake_orca.args_for("orchestration worker-start")

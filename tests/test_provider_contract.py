@@ -1,6 +1,6 @@
 from dataclasses import FrozenInstanceError, fields
 from pathlib import Path
-from typing import get_type_hints
+from typing import get_type_hints, Optional
 
 import pytest
 
@@ -24,6 +24,7 @@ def test_provider_model_types_are_frozen_and_keep_contract_field_order():
         "resolved",
         "vendor",
         "verified",
+        "effort",
     ]
     with pytest.raises(FrozenInstanceError):
         candidate.requested = "changed"
@@ -36,9 +37,11 @@ def test_provider_adapter_exposes_exact_typed_method_contract():
         "detect": {"return": dict},
         "check_auth": {"return": dict},
         "list_models": {"return": list[ModelCandidate]},
+        "list_efforts": {"model": str, "return": dict},
         "validate_model": {
             "model": str,
             "cwd": Path,
+            "effort": Optional[str],
             "return": ModelIdentity,
         },
         "invoke": {
@@ -46,6 +49,7 @@ def test_provider_adapter_exposes_exact_typed_method_contract():
             "packet": Path,
             "schema": Path,
             "cwd": Path,
+            "effort": Optional[str],
             "return": ProcessResult,
         },
         "parse_result": {"result": ProcessResult, "return": dict},

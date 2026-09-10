@@ -23,10 +23,12 @@ class CodexAdapter:
         executable: str = "codex",
         models_cache: Path | None = None,
         timeout_seconds: int = 300,
+        effort: str = "high",
     ):
         self.executable = executable
         self.models_cache = models_cache
         self.timeout_seconds = timeout_seconds
+        self.effort = effort
 
     def detect(self) -> dict:
         executable = _resolve_executable(self.executable)
@@ -81,13 +83,51 @@ class CodexAdapter:
                     )
         return candidates
 
-    def validate_model(self, model: str, cwd: Path) -> ModelIdentity:
+    def list_efforts(self, model: str) -> dict:
+        cache = self.models_cache or _default_models_cache()
+        try:
+            payload = json.loads(cache.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            raise MaoError(
+                "MODEL_LIST_UNSUPPORTED",
+                "Codex effort metadata could not be read",
+                {"provider": self.name, "source": "models_cache.json"},
+            ) from error
+        source = "codex models_cache.json"
+        fetched_at = payload.get("fetched_at")
+        if isinstance(fetched_at, str) and fetched_at:
+            source = f"{source} fetched_at={fetched_at}"
+        for item in payload.get("models", []):
+            if not isinstance(item, dict) or item.get("slug") != model:
+                continue
+            levels = item.get("supported_reasoning_levels", [])
+            values = [
+                level["effort"]
+                for level in levels
+                if isinstance(level, dict)
+                and isinstance(level.get("effort"), str)
+                and level["effort"]
+            ]
+            return {
+                "values": list(dict.fromkeys(values)),
+                "default": item.get("default_reasoning_level"),
+                "source": source,
+                "exhaustive": bool(values),
+            }
+        return {"values": [], "default": None, "source": source, "exhaustive": False}
+
+    def validate_model(
+        self, model: str, cwd: Path, effort: str | None = None
+    ) -> ModelIdentity:
         del cwd
+        selected_effort = effort or self.effort
         args = [
             self.executable,
             "exec",
             "--model",
             model,
+            "-c",
+            f'model_reasoning_effort="{selected_effort}"',
             "--dangerously-bypass-approvals-and-sandbox",
             "--json",
             "--skip-git-repo-check",
@@ -119,7 +159,9 @@ class CodexAdapter:
         packet: Path,
         schema: Path,
         cwd: Path,
+        effort: str | None = None,
     ) -> ProcessResult:
+        selected_effort = effort or self.effort
         canonical = json.loads(schema.read_text(encoding="utf-8"))
         compatible = _codex_compatible_schema(canonical)
         with tempfile.TemporaryDirectory(prefix="mao-codex-schema-") as directory:
@@ -133,6 +175,8 @@ class CodexAdapter:
                 "exec",
                 "--model",
                 model,
+                "-c",
+                f'model_reasoning_effort="{selected_effort}"',
                 "--dangerously-bypass-approvals-and-sandbox",
                 "--json",
                 "--skip-git-repo-check",

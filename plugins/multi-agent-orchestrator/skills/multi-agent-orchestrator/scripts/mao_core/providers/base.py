@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
+from typing import Optional, Protocol
 
 from mao_core.process import ProcessResult
 
@@ -22,6 +22,7 @@ class ModelIdentity:
     resolved: str
     vendor: str
     verified: bool
+    effort: str = ""
 
 
 class ProviderAdapter(Protocol):
@@ -33,7 +34,11 @@ class ProviderAdapter(Protocol):
 
     def list_models(self) -> list[ModelCandidate]: ...
 
-    def validate_model(self, model: str, cwd: Path) -> ModelIdentity: ...
+    def list_efforts(self, model: str) -> dict: ...
+
+    def validate_model(
+        self, model: str, cwd: Path, effort: Optional[str] = None
+    ) -> ModelIdentity: ...
 
     def invoke(
         self,
@@ -41,6 +46,7 @@ class ProviderAdapter(Protocol):
         packet: Path,
         schema: Path,
         cwd: Path,
+        effort: Optional[str] = None,
     ) -> ProcessResult: ...
 
     def parse_result(self, result: ProcessResult) -> dict: ...

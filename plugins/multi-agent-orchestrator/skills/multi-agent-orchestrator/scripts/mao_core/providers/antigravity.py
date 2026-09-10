@@ -18,9 +18,12 @@ _PROBE_PROMPT = "Reply with exact text OK."
 class AntigravityAdapter:
     name = "antigravity"
 
-    def __init__(self, executable: str = "agy", timeout_seconds: int = 300):
+    def __init__(
+        self, executable: str = "agy", timeout_seconds: int = 300, effort: str = "high"
+    ):
         self.executable = executable
         self.timeout_seconds = timeout_seconds
+        self.effort = effort
 
     def detect(self) -> dict:
         executable = _resolve_executable(self.executable)
@@ -58,14 +61,35 @@ class AntigravityAdapter:
             for model in _models_from_output(result.stdout)
         ]
 
-    def validate_model(self, model: str, cwd: Path) -> ModelIdentity:
+    def list_efforts(self, model: str) -> dict:
+        del model
+        with tempfile.TemporaryDirectory(prefix="mao-agy-efforts-") as directory:
+            result = run_process(
+                [self.executable, "--help"],
+                Path(directory),
+                min(self.timeout_seconds, 10),
+            )
+        values = _efforts_from_help(result.stdout) if result.exit_code == 0 else []
+        return {
+            "values": values,
+            "default": None,
+            "source": "agy --help",
+            "exhaustive": bool(values),
+        }
+
+    def validate_model(
+        self, model: str, cwd: Path, effort: str | None = None
+    ) -> ModelIdentity:
         del cwd
+        selected_effort = effort or self.effort
         args = [
             self.executable,
             "--print",
             _PROBE_PROMPT,
             "--model",
             model,
+            "--effort",
+            selected_effort,
             "--output-format",
             "json",
             "--dangerously-skip-permissions",
@@ -99,13 +123,17 @@ class AntigravityAdapter:
         packet: Path,
         schema: Path,
         cwd: Path,
+        effort: str | None = None,
     ) -> ProcessResult:
+        selected_effort = effort or self.effort
         args = [
             self.executable,
             "--print",
             packet.read_text(encoding="utf-8"),
             "--model",
             model,
+            "--effort",
+            selected_effort,
             "--output-format",
             "json",
             "--json-schema",
@@ -160,6 +188,17 @@ def _with_native_usage(parsed: dict, usage: object) -> dict:
     value = dict(parsed)
     value["usage"] = dict(usage)
     return value
+
+
+def _efforts_from_help(help_text: str) -> list[str]:
+    option = re.search(r"^.*--effort.*$", help_text, flags=re.MULTILINE)
+    if option is None:
+        return []
+    return list(
+        dict.fromkeys(
+            re.findall(r"\b(?:low|medium|high|xhigh|max|ultra)\b", option.group(0))
+        )
+    )
 
 
 def _resolve_executable(executable: str) -> str | None:
