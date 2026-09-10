@@ -65,6 +65,18 @@ def test_codex_and_claude_local_install_copy_canonical_skill(
     assert ".multi-agent-orchestrator/" in (project / ".gitignore").read_text()
 
 
+def test_install_preserves_existing_gitignore_permissions(tmp_path, canonical_skill):
+    project = tmp_path / "project"
+    project.mkdir()
+    ignore = project / ".gitignore"
+    ignore.write_text("existing\n", encoding="utf-8")
+    ignore.chmod(0o755)
+
+    install_project(project, ["codex"])
+
+    assert ignore.stat().st_mode & 0o777 == 0o755
+
+
 def test_update_removes_only_prior_managed_files_and_preserves_unrelated(
     tmp_path, canonical_skill
 ):

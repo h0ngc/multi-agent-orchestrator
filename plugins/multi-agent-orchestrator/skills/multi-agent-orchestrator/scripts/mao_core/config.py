@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import os
 from pathlib import Path
 import re
+import stat
 import tempfile
 
 from .errors import MaoError
@@ -68,6 +69,7 @@ def _config_error(message: str, **details: object) -> MaoError:
 
 def _atomic_write(path: Path, data: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    existing_mode = stat.S_IMODE(path.stat().st_mode) if path.exists() else None
     temporary_path: Path | None = None
     try:
         with tempfile.NamedTemporaryFile(
@@ -80,6 +82,8 @@ def _atomic_write(path: Path, data: bytes) -> None:
             temporary_path = Path(temporary.name)
             temporary.write(data)
             temporary.flush()
+            if existing_mode is not None:
+                os.fchmod(temporary.fileno(), existing_mode)
             os.fsync(temporary.fileno())
         os.replace(temporary_path, path)
     finally:
