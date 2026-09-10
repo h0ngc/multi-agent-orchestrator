@@ -40,7 +40,7 @@ claude plugin marketplace add h0ngc/multi-agent-orchestrator
 claude plugin install multi-agent-orchestrator@multi-agent-orchestrator --scope project
 ```
 
-Marketplace registration makes plugin discoverable; runtime configuration remains project-local. Use exact commands only after repository publication succeeds.
+Repository publication and both remote marketplace flows were verified on 2026-09-10 with Codex CLI 0.153.0 and Claude Code 2.1.220. Marketplace registration makes plugin discoverable; runtime configuration remains project-local.
 
 Codex metadata explicitly sets `allow_implicit_invocation: false`. Claude discovers bundled skill from plugin `skills/` directory.
 
@@ -146,13 +146,15 @@ Fallback is never silent. `MAO_TRANSPORT_FALLBACK` must explicitly name it, and 
 
 ## Antigravity registration limitation
 
-Project-local installer cannot guarantee purely project-scoped Antigravity discovery. `--host antigravity` reports:
+Antigravity CLI 1.2.0 does not consume this repository through Codex or Claude marketplace registration. `agy plugin install multi-agent-orchestrator@multi-agent-orchestrator` reports `unknown marketplace`, and `agy plugin import claude` does not discover the Claude marketplace plugin.
+
+Use clone plus local plugin registration instead:
 
 ```text
 agy plugin install <absolute-local-plugin-path>
 ```
 
-This may mutate Antigravity user plugin registry. Installer does not execute it unless caller explicitly adds `--register-antigravity`. Runtime `.env`, state, packets, and run records remain project-local.
+For this repository, `<absolute-local-plugin-path>` is the absolute path to `plugins/multi-agent-orchestrator`. This registration flow was verified with Antigravity CLI 1.2.0. It mutates Antigravity user plugin registry. Installer does not execute it unless caller explicitly adds `--register-antigravity`. Runtime `.env`, state, packets, and run records remain project-local.
 
 ## Troubleshooting
 
